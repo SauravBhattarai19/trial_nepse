@@ -92,7 +92,15 @@ drag to pan). You can:
   did after each score historically, and a **crossover check** that marks
   AD-line crossovers (AD × MA *n*, or MA *a* × MA *b*) on the chart and shows
   NEPSE's average move and hit rate over the next 5 and 20 days, for
-  2013–2019 vs since 2020
+  2013–2019 vs since 2020. The same check works on the **price chart**: pick
+  "NABIL × MA20" or "NABIL MA10 × MA20" and it marks those crosses on the
+  candles and shows what NABIL itself did next
+- **backtest a rule**: tick any mix of conditions (money flow above X%, score
+  at least N, AD line above its MA, AD MA crossover, McClellan above 0,
+  summation rising, NEPSE above its MA), set the trading cost, and compare
+  the result with buy-and-hold since 2013, for 2013–2019 and since 2020:
+  return a year, worst drawdown, time in the market, trades a year, an
+  equity curve and a drawdown chart, plus whether the rule is in or out today
 
 ### What the data says (study of 2013 – Nov 2026)
 
