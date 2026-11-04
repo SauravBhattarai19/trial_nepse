@@ -130,6 +130,15 @@ shortly after each trading day ends. The page source lives in `site/`;
 `python scripts/build_site.py` builds it into `_site/` (open it with
 `python -m http.server -d _site`).
 
+**Keeping it running.** `data-freshness-check` runs at 17:45 and 20:45
+Nepal time. If ShareSansar shows a newer trading day than the data here, it
+re-runs the scraper and opens a GitHub issue (label `data-alarm`, which emails
+you), then closes that issue once the data catches up. The page header shows
+"Data through …" and turns amber when no new trading day has arrived for
+more than four days. Each evening `scripts/log_signals.py` also records that
+day's breadth score and crossovers in `data/signal-log.csv`, building a
+forward-tested track record that hindsight can't touch.
+
 **One-time setup:** in the repository's *Settings → Pages*, set **Source** to
 **GitHub Actions**. After that, deployments are automatic.
 

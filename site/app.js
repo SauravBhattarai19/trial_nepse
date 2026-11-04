@@ -833,6 +833,25 @@
     });
   }
 
+  // "Data through ..." line; amber when no new trading day has arrived for a while.
+  // More than 4 days covers a normal Fri-Sat weekend plus a day's slack; longer
+  // gaps are either a market holiday or a missed update.
+  function renderFreshness() {
+    const nptNow = new Date(Date.now() + (5 * 60 + 45) * 60000);   // Nepal is UTC+5:45
+    const todayNpt = nptNow.toISOString().slice(0, 10);
+    const days = Math.round((Date.parse(todayNpt) - Date.parse(data.last_date)) / 86400000);
+    const wd = new Date(data.last_date + "T00:00:00Z").toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+    let built = "";
+    if (data.generated_at) {
+      const g = new Date(Date.parse(data.generated_at) + (5 * 60 + 45) * 60000).toISOString();
+      built = ` · site rebuilt ${g.slice(0, 10) === todayNpt ? "today" : g.slice(0, 10)} ${g.slice(11, 16)} NPT`;
+    }
+    const el = $("updated");
+    el.className = days > 4 ? "fresh stale" : "fresh";
+    el.textContent = `Data through ${wd} ${data.last_date}${built}` +
+      (days > 4 ? ` · no new trading day for ${days} days (market holiday, or a missed update)` : "");
+  }
+
   async function main() {
     readHash();
     const status = $("status");
@@ -857,7 +876,7 @@
     }
     $("symbols").innerHTML = opts.join("");
     for (const k of Object.keys(counts)) $("n-" + k).textContent = counts[k];
-    $("updated").textContent = "Data through " + data.last_date + ".";
+    renderFreshness();
 
     buildForward();
     createCharts();

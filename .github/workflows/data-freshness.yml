@@ -1,0 +1,59 @@
+name: data-freshness-check
+on:
+  schedule:
+    # 17:45 and 20:45 Nepal time (UTC+5:45), Sun-Fri: after the scraper's
+    # 15:15 / 16:15 / 17:15 runs should have landed today's prices.
+    - cron: "0 12,15 * * 0,1,2,3,4,5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write    # open / close the "missed update" issue
+  actions: write   # re-run the scraper when today's data is missing
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      LABEL: data-alarm
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install packages
+        run: pip install "requests>=2.31"
+
+      - name: Compare our data with ShareSansar
+        id: check
+        run: python scripts/check_freshness.py
+
+      - name: Data missing - re-run the scraper and raise an issue
+        if: steps.check.outputs.status == 'stale'
+        run: |
+          gh workflow run schedule-updater.yml --ref main
+          gh label create "$LABEL" --color d93f0b --description "Daily data update missed" --force
+          msg="ShareSansar shows prices for **${{ steps.check.outputs.site_date }}**, but the newest data in \`data/company-wise\` is **${{ steps.check.outputs.data_date }}**.
+
+          I started \`update-companies-data\` again: [runs](${{ github.server_url }}/${{ github.repository }}/actions/workflows/schedule-updater.yml). This issue closes itself once the data catches up. If the re-run fails, check its log; the usual cause is a change to ShareSansar's page."
+          num=$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number')
+          if [ -n "$num" ]; then
+            gh issue comment "$num" --body "$msg"
+          else
+            gh issue create --title "Daily data update missed (${{ steps.check.outputs.site_date }})" --label "$LABEL" --body "$msg"
+          fi
+
+      - name: Data fresh - close any open alarm
+        if: steps.check.outputs.status == 'ok'
+        run: |
+          for num in $(gh issue list --label "$LABEL" --state open --json number --jq '.[].number'); do
+            gh issue close "$num" --comment "Data is up to date again (${{ steps.check.outputs.data_date }})."
+          done
+
+      - name: ShareSansar unreachable
+        if: steps.check.outputs.status == 'unreachable'
+        run: |
+          echo "::warning::Could not read ShareSansar's today-share-price page; freshness not checked this time."

@@ -333,3 +333,8 @@ tbody tr:last-child td { border-bottom: 0; }
   .bars th, .bars td, .xt th, .xt td { padding: 6px 3px; }
   .card { padding: 12px; }
 }
+
+/* data freshness line under the title */
+.fresh { color: var(--ink-2); }
+.fresh.stale { color: var(--ink); background: rgba(250, 178, 25, 0.22); border-radius: 6px; padding: 1px 6px; }
+.fresh.stale::before { content: "⚠ "; }
