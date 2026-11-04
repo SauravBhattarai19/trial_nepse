@@ -7,6 +7,17 @@ on:
     # 15:15, 16:15, 17:15, 19:15 and 22:15 NPT.
     - cron: "30 9,10,11,13,16 * * 0,1,2,3,4,5"
   workflow_dispatch:
+
+# Repos created since 2023 give workflows a read-only token by default; the
+# job pushes the new rows back to main, so it needs write access.
+permissions:
+  contents: write
+
+# Don't let a slow run and the next retry push at the same time.
+concurrency:
+  group: update-companies-data
+  cancel-in-progress: false
+
 defaults:
   run:
     working-directory: ./src
