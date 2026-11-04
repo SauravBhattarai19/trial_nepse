@@ -26,7 +26,7 @@ The Github Actions updates the data on an almost daily basis so that the dataset
 
 ## Code
 
-The code through which the data were/are being collected resides in the [src/](https://github.com/Aabishkar2/nepse-data/tree/main/src) folder. The code is written in `python3.8` and the required libraries are listed in `src/requirements.txt`.
+The code through which the data were/are being collected resides in the [src/](https://github.com/Aabishkar2/nepse-data/tree/main/src) folder. The code runs on Python 3.11 (what the GitHub Actions workflows use) and the required libraries are listed in `src/requirements.txt`.
 
 If you want to collect the datasets by yourself then you can run the following commands.
 

@@ -12,7 +12,7 @@ All scrapers run from the `src/` directory and import using paths relative to it
 
 ```bash
 cd src
-pip3 install -r requirements.txt      # Python 3.8
+pip3 install -r requirements.txt      # Python 3.11 (what CI uses)
 
 python3 discoverCompanies.py          # refresh constants/companyIdMap.py from the live site (do this before a backfill)
 python3 allDataScrapper.py            # full historical backfill; seeds ONLY companies missing a CSV (skips existing)

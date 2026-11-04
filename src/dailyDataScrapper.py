@@ -1,5 +1,5 @@
 # import required library and required constants
-import time
+import io
 import requests
 import pandas as pd
 from pathlib import Path
@@ -7,14 +7,17 @@ from bs4 import BeautifulSoup
 from utils.status import getStatus
 from constants.url import dailyPriceUrl
 
-html = requests.get(dailyPriceUrl).text
+response = requests.get(dailyPriceUrl, timeout=60)
+response.raise_for_status()
+html = response.text
 bs = BeautifulSoup(html, "lxml")
 
 # today date in yyyy-mm-dd format
 today = bs.find("span", {"class": "text-org"}).text
 
 # get html tables
-tables = pd.read_html(html)
+# (pandas >= 2.1 wants a file-like object, not a raw HTML string)
+tables = pd.read_html(io.StringIO(html))
 
 # select the first table i.e. the stock price table
 dataTable = tables[0]
