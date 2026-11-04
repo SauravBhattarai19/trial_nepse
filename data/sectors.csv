@@ -1,304 +1,304 @@
 symbol,sector,source
-ACLBSL,Microfinance,seed
+ACLBSL,Microfinance,sharesansar
 ADBL,Commercial Banks,seed
-AHL,Hydro Power,seed
-AHPC,Hydro Power,seed
-AKJCL,Hydro Power,seed
-AKPL,Hydro Power,seed
-ALBSL,Microfinance,seed
-ALICL,Life Insurance,seed
-ANLB,Microfinance,seed
-APHL,Unclassified,seed
-API,Hydro Power,seed
-AVYAN,Microfinance,seed
-BANDIPUR,Hotels And Tourism,seed
-BARUN,Hydro Power,seed
-BBC,Trading,seed
-BEDC,Hydro Power,seed
-BFC,Finance,seed
-BGWT,Unclassified,seed
-BHCL,Unclassified,seed
-BHDC,Hydro Power,seed
-BHL,Hydro Power,seed
-BHPL,Hydro Power,seed
-BJHL,Hydro Power,seed
-BNHC,Hydro Power,seed
-BNT,Manufacturing And Processing,seed
+AHL,Hydro Power,sharesansar
+AHPC,Hydro Power,sharesansar
+AKJCL,Hydro Power,sharesansar
+AKPL,Hydro Power,sharesansar
+ALBSL,Microfinance,sharesansar
+ALICL,Life Insurance,sharesansar
+ANLB,Microfinance,sharesansar
+APHL,Hydro Power,sharesansar
+API,Hydro Power,sharesansar
+AVYAN,Microfinance,sharesansar
+BANDIPUR,Hotels And Tourism,sharesansar
+BARUN,Hydro Power,sharesansar
+BBC,Trading,sharesansar
+BEDC,Hydro Power,sharesansar
+BFC,Finance,sharesansar
+BGWT,Hydro Power,sharesansar
+BHCL,Hydro Power,sharesansar
+BHDC,Hydro Power,sharesansar
+BHL,Hydro Power,sharesansar
+BHPL,Hydro Power,sharesansar
+BJHL,Hydro Power,sharesansar
+BNHC,Hydro Power,sharesansar
+BNT,Manufacturing And Processing,sharesansar
 BOKL,Commercial Banks,seed
-BPCL,Hydro Power,seed
-BUNGAL,Unclassified,seed
-CBBL,Microfinance,seed
+BPCL,Hydro Power,sharesansar
+BUNGAL,Hydro Power,sharesansar
+CBBL,Microfinance,sharesansar
 CBL,Commercial Banks,seed
 CCBL,Commercial Banks,seed
-CFCL,Finance,seed
+CFCL,Finance,sharesansar
 CFL,Unclassified,seed
-CGH,Hotels And Tourism,seed
-CHCL,Hydro Power,seed
-CHDC,Investment,seed
-CHL,Hydro Power,seed
-CIT,Investment,seed
-CITY,Hotels And Tourism,seed
-CKHL,Hydro Power,seed
-CLI,Life Insurance,seed
-CMB,Finance,seed
+CGH,Hotels And Tourism,sharesansar
+CHCL,Hydro Power,sharesansar
+CHDC,Investment,sharesansar
+CHL,Hydro Power,sharesansar
+CIT,Investment,sharesansar
+CITY,Hotels And Tourism,sharesansar
+CKHL,Hydro Power,sharesansar
+CLI,Life Insurance,sharesansar
+CMB,Finance,sharesansar
 CORBL,Development Banks,seed
-CREST,Unclassified,seed
-CYCL,Microfinance,seed
+CREST,Life Insurance,sharesansar
+CYCL,Microfinance,sharesansar
 CZBIL,Commercial Banks,seed
-DDBL,Development Banks,seed
-DHEL,Unclassified,seed
-DHPL,Hydro Power,seed
-DLBS,Microfinance,seed
-DOLTI,Hydro Power,seed
-DORDI,Hydro Power,seed
+DDBL,Microfinance,sharesansar
+DHEL,Hydro Power,sharesansar
+DHPL,Hydro Power,sharesansar
+DLBS,Microfinance,sharesansar
+DOLTI,Hydro Power,sharesansar
+DORDI,Hydro Power,sharesansar
 EBL,Commercial Banks,seed
 EDBL,Development Banks,seed
-EHPL,Hydro Power,seed
-ENL,Investment,seed
-FMDBL,Microfinance,seed
-FOWAD,Microfinance,seed
+EHPL,Hydro Power,sharesansar
+ENL,Investment,sharesansar
+FMDBL,Microfinance,sharesansar
+FOWAD,Microfinance,sharesansar
 GBBL,Development Banks,seed
 GBIME,Commercial Banks,seed
-GBLBS,Microfinance,seed
-GCIL,Manufacturing And Processing,seed
-GFCL,Finance,seed
-GHL,Hydro Power,seed
-GILB,Microfinance,seed
-GLBSL,Microfinance,seed
-GLH,Hydro Power,seed
+GBLBS,Microfinance,sharesansar
+GCIL,Manufacturing And Processing,sharesansar
+GFCL,Finance,sharesansar
+GHL,Hydro Power,sharesansar
+GILB,Microfinance,sharesansar
+GLBSL,Microfinance,sharesansar
+GLH,Hydro Power,sharesansar
 GLICL,Life Insurance,seed
-GMFBS,Microfinance,seed
-GMFIL,Finance,seed
-GMLI,Life Insurance,seed
+GMFBS,Microfinance,sharesansar
+GMFIL,Finance,sharesansar
+GMLI,Life Insurance,sharesansar
 GRDBL,Development Banks,seed
-GUFL,Finance,seed
-GVL,Hydro Power,seed
-HATHY,Investment,seed
+GUFL,Finance,sharesansar
+GVL,Hydro Power,sharesansar
+HATHY,Investment,sharesansar
 HBL,Commercial Banks,seed
-HDHPC,Hydro Power,seed
-HDL,Manufacturing And Processing,seed
-HEI,Non Life Insurance,seed
+HDHPC,Hydro Power,sharesansar
+HDL,Manufacturing And Processing,sharesansar
+HEI,Non Life Insurance,sharesansar
 HEIP,Non Life Insurance,seed
-HFIN,Unclassified,seed
-HHL,Hydro Power,seed
-HIDCL,Investment,seed
+HFIN,Hotels And Tourism,sharesansar
+HHL,Hydro Power,sharesansar
+HIDCL,Investment,sharesansar
 HIDCLP,Investment,seed
-HIMSTAR,Hydro Power,seed
-HLBSL,Microfinance,seed
-HLI,Life Insurance,seed
-HPPL,Hydro Power,seed
-HRL,Non Life Insurance,seed
-HURJA,Hydro Power,seed
-ICFC,Finance,seed
-IGI,Non Life Insurance,seed
-IHL,Hydro Power,seed
-ILBS,Microfinance,seed
-ILI,Life Insurance,seed
+HIMSTAR,Hydro Power,sharesansar
+HLBSL,Microfinance,sharesansar
+HLI,Life Insurance,sharesansar
+HPPL,Hydro Power,sharesansar
+HRL,Others,sharesansar
+HURJA,Hydro Power,sharesansar
+ICFC,Finance,sharesansar
+IGI,Non Life Insurance,sharesansar
+IHL,Hydro Power,sharesansar
+ILBS,Microfinance,sharesansar
+ILI,Life Insurance,sharesansar
 JBBL,Development Banks,seed
-JBLB,Microfinance,seed
-JFL,Finance,seed
-JHAPA,Unclassified,seed
+JBLB,Microfinance,sharesansar
+JFL,Finance,sharesansar
+JHAPA,Others,sharesansar
 JLI,Life Insurance,seed
-JOSHI,Hydro Power,seed
-JSLBB,Microfinance,seed
+JOSHI,Hydro Power,sharesansar
+JSLBB,Microfinance,sharesansar
 KBL,Commercial Banks,seed
-KBSH,Hydro Power,seed
-KDL,Hotels And Tourism,seed
-KHPL,Unclassified,seed
-KKHC,Hydro Power,seed
-KMCDB,Microfinance,seed
-KPCL,Hydro Power,seed
+KBSH,Hydro Power,sharesansar
+KDL,Hotels And Tourism,sharesansar
+KHPL,Hydro Power,sharesansar
+KKHC,Hydro Power,sharesansar
+KMCDB,Microfinance,sharesansar
+KPCL,Hydro Power,sharesansar
 KRBL,Unclassified,seed
 KSBBL,Development Banks,seed
 LBBL,Development Banks,seed
 LBL,Commercial Banks,seed
-LEC,Hydro Power,seed
-LICN,Life Insurance,seed
-LLBS,Microfinance,seed
+LEC,Hydro Power,sharesansar
+LICN,Life Insurance,sharesansar
+LLBS,Microfinance,sharesansar
 LSL,Commercial Banks,seed
-MABEL,Hydro Power,seed
-MAKAR,Hydro Power,seed
-MANDU,Hydro Power,seed
-MATRI,Microfinance,seed
-MBJC,Hydro Power,seed
+MABEL,Hydro Power,sharesansar
+MAKAR,Hydro Power,sharesansar
+MANDU,Hydro Power,sharesansar
+MATRI,Microfinance,sharesansar
+MBJC,Hydro Power,sharesansar
 MBL,Commercial Banks,seed
-MCHL,Hydro Power,seed
+MCHL,Hydro Power,sharesansar
 MDB,Development Banks,seed
 MEGA,Commercial Banks,seed
-MEHL,Hydro Power,seed
-MEL,Hydro Power,seed
-MEN,Hydro Power,seed
-MERO,Microfinance,seed
-MFIL,Finance,seed
-MHCL,Hydro Power,seed
-MHL,Hydro Power,seed
-MHNL,Hydro Power,seed
-MKCL,Others,seed
-MKHC,Hydro Power,seed
-MKHL,Hydro Power,seed
-MKJC,Hydro Power,seed
-MLBBL,Microfinance,seed
+MEHL,Hydro Power,sharesansar
+MEL,Hydro Power,sharesansar
+MEN,Hydro Power,sharesansar
+MERO,Microfinance,sharesansar
+MFIL,Finance,sharesansar
+MHCL,Hydro Power,sharesansar
+MHL,Hydro Power,sharesansar
+MHNL,Hydro Power,sharesansar
+MKCL,Others,sharesansar
+MKHC,Hydro Power,sharesansar
+MKHL,Hydro Power,sharesansar
+MKJC,Hydro Power,sharesansar
+MLBBL,Microfinance,sharesansar
 MLBL,Development Banks,seed
-MLBS,Microfinance,seed
-MLBSL,Microfinance,seed
-MMKJL,Hydro Power,seed
+MLBS,Microfinance,sharesansar
+MLBSL,Microfinance,sharesansar
+MMKJL,Hydro Power,sharesansar
 MNBBL,Development Banks,seed
-MPFL,Finance,seed
-MSHL,Hydro Power,seed
-MSLB,Microfinance,seed
+MPFL,Finance,sharesansar
+MSHL,Hydro Power,sharesansar
+MSLB,Microfinance,sharesansar
 NABBC,Development Banks,seed
 NABIL,Commercial Banks,seed
-NADEP,Microfinance,seed
+NADEP,Microfinance,sharesansar
 NBB,Commercial Banks,seed
 NBL,Commercial Banks,seed
 NCCB,Commercial Banks,seed
-NESDO,Microfinance,seed
-NFS,Finance,seed
-NGPL,Hydro Power,seed
-NHDL,Hydro Power,seed
-NHPC,Hydro Power,seed
+NESDO,Microfinance,sharesansar
+NFS,Finance,sharesansar
+NGPL,Hydro Power,sharesansar
+NHDL,Hydro Power,sharesansar
+NHPC,Hydro Power,sharesansar
 NIB,Commercial Banks,seed
 NICA,Commercial Banks,seed
-NICL,Non Life Insurance,seed
-NICLBSL,Microfinance,seed
-NIFRA,Investment,seed
-NIL,Non Life Insurance,seed
+NICL,Non Life Insurance,sharesansar
+NICLBSL,Microfinance,sharesansar
+NIFRA,Investment,sharesansar
+NIL,Non Life Insurance,sharesansar
 NIMB,Commercial Banks,seed
 NIMBPO,Commercial Banks,seed
-NLG,Non Life Insurance,seed
-NLIC,Life Insurance,seed
-NLICL,Life Insurance,seed
+NLG,Non Life Insurance,sharesansar
+NLIC,Life Insurance,sharesansar
+NLICL,Life Insurance,sharesansar
 NMB,Commercial Banks,seed
-NMBMF,Microfinance,seed
-NMFBS,Microfinance,seed
-NMIC,Unclassified,seed
-NMLBBL,Microfinance,seed
-NRIC,Non Life Insurance,seed
-NRM,Others,seed
-NRN,Investment,seed
-NTC,Others,seed
-NUBL,Microfinance,seed
-NWCL,Others,seed
-NYADI,Hydro Power,seed
-OHL,Hotels And Tourism,seed
-OMPL,Manufacturing And Processing,seed
+NMBMF,Microfinance,sharesansar
+NMFBS,Microfinance,sharesansar
+NMIC,Non Life Insurance,sharesansar
+NMLBBL,Microfinance,sharesansar
+NRIC,Others,sharesansar
+NRM,Others,sharesansar
+NRN,Investment,sharesansar
+NTC,Others,sharesansar
+NUBL,Microfinance,sharesansar
+NWCL,Others,sharesansar
+NYADI,Hydro Power,sharesansar
+OHL,Hotels And Tourism,sharesansar
+OMPL,Manufacturing And Processing,sharesansar
 PCBL,Commercial Banks,seed
-PCIL,Unclassified,seed
-PFL,Finance,seed
-PHCL,Hydro Power,seed
+PCIL,Manufacturing And Processing,sharesansar
+PFL,Finance,sharesansar
+PHCL,Hydro Power,sharesansar
 PLI,Life Insurance,seed
 PLIC,Life Insurance,seed
-PMHPL,Hydro Power,seed
-PMLI,Life Insurance,seed
-PPCL,Hydro Power,seed
-PPL,Hydro Power,seed
-PRIN,Non Life Insurance,seed
-PROFL,Finance,seed
+PMHPL,Hydro Power,sharesansar
+PMLI,Life Insurance,sharesansar
+PPCL,Hydro Power,sharesansar
+PPL,Hydro Power,sharesansar
+PRIN,Non Life Insurance,sharesansar
+PROFL,Finance,sharesansar
 PRVU,Commercial Banks,seed
-PURE,Hydro Power,seed
-RADHI,Hydro Power,seed
-RAWA,Hydro Power,seed
-RBCL,Non Life Insurance,seed
+PURE,Others,sharesansar
+RADHI,Hydro Power,sharesansar
+RAWA,Hydro Power,sharesansar
+RBCL,Non Life Insurance,sharesansar
 RBCLPO,Non Life Insurance,seed
-RFPL,Hydro Power,seed
-RHGCL,Hydro Power,seed
+RFPL,Hydro Power,sharesansar
+RHGCL,Hydro Power,sharesansar
 RHPC,Hydro Power,seed
-RHPL,Hydro Power,seed
-RIDI,Hydro Power,seed
-RLEL,Unclassified,seed
-RLFL,Finance,seed
+RHPL,Hydro Power,sharesansar
+RIDI,Hydro Power,sharesansar
+RLEL,Hydro Power,sharesansar
+RLFL,Finance,sharesansar
 RLI,Life Insurance,seed
-RNLI,Life Insurance,seed
+RNLI,Life Insurance,sharesansar
 RRHP,Unclassified,seed
-RSDC,Microfinance,seed
-RSML,Manufacturing And Processing,seed
-RURU,Hydro Power,seed
+RSDC,Microfinance,sharesansar
+RSML,Manufacturing And Processing,sharesansar
+RURU,Hydro Power,sharesansar
 SABBL,Development Banks,seed
 SADBL,Development Banks,seed
-SAGAR,Unclassified,seed
-SAHAS,Hydro Power,seed
-SAIL,Unclassified,seed
-SALICO,Non Life Insurance,seed
+SAGAR,Manufacturing And Processing,sharesansar
+SAHAS,Hydro Power,sharesansar
+SAIL,Manufacturing And Processing,sharesansar
+SALICO,Non Life Insurance,sharesansar
 SANIMA,Commercial Banks,seed
-SANVI,Hydro Power,seed
+SANVI,Hydro Power,sharesansar
 SAPDBL,Development Banks,seed
-SARBTM,Manufacturing And Processing,seed
+SARBTM,Manufacturing And Processing,sharesansar
 SBI,Commercial Banks,seed
 SBL,Commercial Banks,seed
 SCB,Commercial Banks,seed
 SFCL,Finance,seed
-SGHC,Hydro Power,seed
-SGIC,Non Life Insurance,seed
+SGHC,Hydro Power,sharesansar
+SGIC,Non Life Insurance,sharesansar
 SHBL,Unclassified,seed
-SHEL,Hydro Power,seed
+SHEL,Hydro Power,sharesansar
 SHINE,Development Banks,seed
-SHIVM,Manufacturing And Processing,seed
-SHL,Hotels And Tourism,seed
-SHLB,Microfinance,seed
-SHPC,Hydro Power,seed
-SICL,Non Life Insurance,seed
-SIFC,Finance,seed
-SIKLES,Hydro Power,seed
+SHIVM,Manufacturing And Processing,sharesansar
+SHL,Hotels And Tourism,sharesansar
+SHLB,Microfinance,sharesansar
+SHPC,Hydro Power,sharesansar
+SICL,Non Life Insurance,sharesansar
+SIFC,Finance,sharesansar
+SIKLES,Hydro Power,sharesansar
 SINDU,Development Banks,seed
-SIPD,Unclassified,seed
-SJCL,Hydro Power,seed
-SJLIC,Life Insurance,seed
-SKBBL,Microfinance,seed
-SKHEL,Hydro Power,seed
-SKHL,Hydro Power,seed
-SLBBL,Microfinance,seed
+SIPD,Hydro Power,sharesansar
+SJCL,Hydro Power,sharesansar
+SJLIC,Life Insurance,sharesansar
+SKBBL,Microfinance,sharesansar
+SKHEL,Hydro Power,sharesansar
+SKHL,Hydro Power,sharesansar
+SLBBL,Microfinance,sharesansar
 SLBBLP,Microfinance,seed
-SLBSL,Microfinance,seed
+SLBSL,Microfinance,sharesansar
 SLI,Life Insurance,seed
 SLICL,Life Insurance,seed
-SMATA,Microfinance,seed
-SMB,Microfinance,seed
-SMFBS,Microfinance,seed
-SMH,Hydro Power,seed
-SMHL,Hydro Power,seed
-SMJC,Hydro Power,seed
-SMPDA,Microfinance,seed
-SNLI,Life Insurance,seed
-SNORL,Unclassified,seed
-SOHL,Unclassified,seed
-SONA,Manufacturing And Processing,seed
-SOPL,Unclassified,seed
-SPC,Hydro Power,seed
-SPDL,Hydro Power,seed
-SPHL,Hydro Power,seed
-SPIL,Non Life Insurance,seed
-SPL,Hydro Power,seed
+SMATA,Microfinance,sharesansar
+SMB,Microfinance,sharesansar
+SMFBS,Microfinance,sharesansar
+SMH,Hydro Power,sharesansar
+SMHL,Hydro Power,sharesansar
+SMJC,Hydro Power,sharesansar
+SMPDA,Microfinance,sharesansar
+SNLI,Life Insurance,sharesansar
+SNORL,Hydro Power,sharesansar
+SOHL,Hydro Power,sharesansar
+SONA,Manufacturing And Processing,sharesansar
+SOPL,Manufacturing And Processing,sharesansar
+SPC,Hydro Power,sharesansar
+SPDL,Hydro Power,sharesansar
+SPHL,Hydro Power,sharesansar
+SPIL,Non Life Insurance,sharesansar
+SPL,Hydro Power,sharesansar
 SRBL,Commercial Banks,seed
-SRLI,Life Insurance,seed
-SSHL,Hydro Power,seed
-STC,Trading,seed
-SWASTIK,Microfinance,seed
-SWBBL,Microfinance,seed
-SWMF,Microfinance,seed
-SYPNL,Unclassified,seed
-TAMOR,Hydro Power,seed
-TPC,Hydro Power,seed
-TPKHL,Unclassified,seed
-TRH,Hotels And Tourism,seed
-TSHL,Hydro Power,seed
-TTL,Others,seed
-TVCL,Hydro Power,seed
-UAIL,Non Life Insurance,seed
-UHEWA,Hydro Power,seed
-ULBSL,Microfinance,seed
-ULHC,Hydro Power,seed
+SRLI,Life Insurance,sharesansar
+SSHL,Hydro Power,sharesansar
+STC,Trading,sharesansar
+SWASTIK,Microfinance,sharesansar
+SWBBL,Microfinance,sharesansar
+SWMF,Microfinance,sharesansar
+SYPNL,Manufacturing And Processing,sharesansar
+TAMOR,Hydro Power,sharesansar
+TPC,Hydro Power,sharesansar
+TPKHL,Hydro Power,sharesansar
+TRH,Hotels And Tourism,sharesansar
+TSHL,Hydro Power,sharesansar
+TTL,Others,sharesansar
+TVCL,Hydro Power,sharesansar
+UAIL,Non Life Insurance,sharesansar
+UHEWA,Hydro Power,sharesansar
+ULBSL,Microfinance,sharesansar
+ULHC,Hydro Power,sharesansar
 ULI,Life Insurance,seed
-UMHL,Hydro Power,seed
-UMRH,Hydro Power,seed
-UNHPL,Hydro Power,seed
-UNL,Manufacturing And Processing,seed
-UNLB,Microfinance,seed
-UPCL,Hydro Power,seed
-UPPER,Hydro Power,seed
-USHEC,Hydro Power,seed
-USHL,Hydro Power,seed
-USLB,Microfinance,seed
-VLBS,Microfinance,seed
-VLUCL,Hydro Power,seed
-WNLB,Microfinance,seed
-YMHL,Unclassified,seed
+UMHL,Hydro Power,sharesansar
+UMRH,Hydro Power,sharesansar
+UNHPL,Hydro Power,sharesansar
+UNL,Manufacturing And Processing,sharesansar
+UNLB,Microfinance,sharesansar
+UPCL,Hydro Power,sharesansar
+UPPER,Hydro Power,sharesansar
+USHEC,Hydro Power,sharesansar
+USHL,Hydro Power,sharesansar
+USLB,Microfinance,sharesansar
+VLBS,Microfinance,sharesansar
+VLUCL,Hydro Power,sharesansar
+WNLB,Microfinance,sharesansar
+YMHL,Hydro Power,sharesansar
