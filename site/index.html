@@ -19,11 +19,12 @@
   <section class="tiles" id="tiles" aria-live="polite"></section>
 
   <section class="controls" aria-label="Chart controls">
-    <label class="field">
-      <span class="field-label">Price chart</span>
+    <div class="field">
+      <label class="field-label" for="symbol">Price chart</label>
       <input id="symbol" list="symbols" value="NEPSE" autocomplete="off" spellcheck="false" aria-label="Security to chart (NEPSE index or a company symbol)">
       <datalist id="symbols"></datalist>
-    </label>
+      <span class="adj-row"><label><input type="checkbox" id="t-adj" checked> Adjusted for bonus/rights</label></span>
+    </div>
 
     <div class="field">
       <span class="field-label">Count in breadth</span>
@@ -105,11 +106,11 @@
 
   <section class="insights" aria-labelledby="ins-h">
     <h2 id="ins-h">What the data says</h2>
-    <p class="sub">A study of every trading day from Jan 2013 to Nov 2026, ordinary shares only, with each result checked separately on 2013–2019 and on 2020–2026 so a pattern has to hold in both to count. Returns are from the next day's open. Reproduce it with <code>python scripts/signal_study.py</code>.</p>
+    <p class="sub">A study of every trading day from Jan 2013 to Nov 2026, ordinary shares only (with the pre-2018 price-change data repaired; see <code>scripts/price_changes.py</code>), with each result checked separately on 2013–2019 and on 2020–2026 so a pattern has to hold in both to count. Returns are from the next day's open. Reproduce it with <code>python scripts/signal_study.py</code>.</p>
 
     <article class="card hero">
       <h3>The market decider</h3>
-      <p><b>On any given day, NEPSE goes where the majority of stocks go.</b> The net share of stocks rising vs falling explains about <b>77%</b> of the index's daily moves (correlation 0.88 in both periods). Looking ahead, the best single guide is <b>where the money goes</b>: the 10-day share of turnover traded in rising stocks (<em>money flow</em>). It predicted the following week better than any price-based reading: rank correlation 0.19 in 2013–19 and 0.12 since 2020, against 0.16 and 0.03 for the index's own 20-day momentum. Breadth plus turnover tells you more than the price line alone.</p>
+      <p><b>On any given day, NEPSE goes where the majority of stocks go.</b> The net share of stocks rising vs falling explains about <b>77%</b> of the index's daily moves (correlation 0.88 in both periods). Looking ahead, the best single guide is <b>where the money goes</b>: the 10-day share of turnover traded in rising stocks (<em>money flow</em>). It predicted the following week better than any price-based reading: rank correlation 0.18 in 2013–19 and 0.12 since 2020, against 0.16 and 0.03 for the index's own 20-day momentum. Breadth plus turnover tells you more than the price line alone.</p>
     </article>
 
     <div class="ins-grid">
@@ -119,19 +120,19 @@
       </article>
       <article class="card">
         <h3>The AD-line crossovers that held up</h3>
-        <p>Two crossovers worked in <em>both</em> periods. The fast one is <b>the AD line crossing its 10-day MA</b>: after bullish crosses NEPSE did 0.8% better over the next week than after bearish ones (2013–19 and 2020–26 alike). The slow one is <b>the AD line's 10-day MA crossing its 20-day MA</b>: 1.9% and 3.2% better over the next 20 days. Crossovers of the 50-day MA looked best before 2020 and stopped working after. That is why 10 and 20 are now the default lines.</p>
+        <p>Two crossovers worked in <em>both</em> periods. The fast one is <b>the AD line crossing its 10-day MA</b>: after bullish crosses NEPSE did 0.6% (2013–19) and 0.7% (2020–26) better over the next week than after bearish ones. The slow one is <b>the AD line's 10-day MA crossing its 20-day MA</b>: 1.9% and 3.2% better over the next 20 days. Rules built on the 50-day MA looked best before 2020 (holding NEPSE while the AD line was above it earned 18.9% a year) and fell apart after (4.8%). That is why 10 and 20 are now the default lines.</p>
       </article>
       <article class="card">
         <h3>Bearish crosses are the louder warning</h3>
-        <p>Since 2020 the sell side of breadth has been more informative than the buy side. After the AD line fell below its 7-day MA, NEPSE was higher a week later only <b>34%</b> of the time, against 48% on a typical day. With all five score readings bearish (score 0), the next week averaged −0.3% to −0.4% in both periods, versus about +0.9% when all five were bullish.</p>
+        <p>Since 2020 the sell side of breadth has been more informative than the buy side. After the AD line fell below its 7-day MA, NEPSE was higher a week later only <b>34%</b> of the time, against 48% on a typical day. With all five score readings bearish (score 0), the next week averaged about −0.3% in both periods, versus about +0.9% when all five were bullish.</p>
       </article>
       <article class="card">
         <h3>Use breadth to cut risk, not to chase returns</h3>
-        <p>After 0.4% trading costs, no breadth rule clearly beat simply holding the index. What they do is avoid the worst stretches. Holding NEPSE only while the summation index was rising returned 13.0% a year in 2013–19 and 12.2% since 2020 (buy-and-hold: 12.2% and 13.7%). It did that while invested half the time, and its worst fall was about −21% against −42%. Money flow above 50% gave a similar result (worst fall −19% and −24%).</p>
+        <p>After 0.4% trading costs, no breadth rule clearly beat simply holding the index. What they do is avoid the worst stretches. Holding NEPSE only while money flow was above 50% returned 15.1% a year in 2013–19 and 13.0% since 2020 (buy-and-hold: 12.2% and 13.7%). It did that while invested about half the time, and its worst fall was −19% and −26% against −42% and −43%. Holding while the summation index rose cut the worst fall to about −21% but gave up more return (9.7% and 12.1%).</p>
       </article>
       <article class="card">
         <h3>Textbook divergences fail on NEPSE</h3>
-        <p>In US-style breadth analysis, an index making new highs without the AD line is a warning. Here it wasn't: those days were followed by <b>+4.0%</b> (2013–19) and <b>+2.6%</b> (2020–26) over 20 days, better than average. NEPSE highs tend to keep running. Breadth thrusts and washouts (very low % advancing) were not reliable turning points either. This is a momentum market: weak breadth is a reason to wait, not to bottom-fish.</p>
+        <p>In US-style breadth analysis, an index making new highs without the AD line is a warning. Here it wasn't: those days were followed by <b>+3.0%</b> (2013–19) and <b>+2.6%</b> (2020–26) over 20 days, better than average. NEPSE highs tend to keep running. Breadth thrusts and washouts (very low % advancing) were not reliable turning points either. This is a momentum market: weak breadth is a reason to wait, not to bottom-fish.</p>
       </article>
       <article class="card">
         <h3>Mutual funds don't change the signals</h3>

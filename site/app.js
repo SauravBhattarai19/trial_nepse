@@ -35,7 +35,7 @@
   };
 
   const state = {
-    mf: true, deb: true, symbol: "NEPSE", range: "1Y", mas: MA_DEFAULT.slice(),
+    mf: true, deb: true, symbol: "NEPSE", range: "1Y", mas: MA_DEFAULT.slice(), adj: true,
     pane: "breadth", sig: null /* null = default for the active MAs */, period: "all",
   };
   const maSlot = new Map();  // period -> colour slot 0..2; a line keeps its colour while it is on
@@ -51,6 +51,7 @@
   function readHash() {
     const p = new URLSearchParams(location.hash.slice(1));
     if (p.get("mf") === "0") state.mf = false;
+    if (p.get("adj") === "0") state.adj = false;
     if (p.get("deb") === "0") state.deb = false;
     if (p.get("s")) state.symbol = p.get("s").toUpperCase();
     if (p.get("r") && (RANGE_MONTHS[p.get("r")] || p.get("r") === "ALL")) state.range = p.get("r");
@@ -68,6 +69,7 @@
     if (!state.mf) p.set("mf", "0");
     if (!state.deb) p.set("deb", "0");
     if (state.symbol !== "NEPSE") p.set("s", state.symbol);
+    if (!state.adj) p.set("adj", "0");
     if (state.range !== "1Y") p.set("r", state.range);
     const mas = state.mas.slice().sort((x, y) => x - y).join(",");
     if (mas !== MA_DEFAULT.join(",")) p.set("ma", mas || "0");
@@ -231,32 +233,67 @@
     return p;
   }
 
+  // Effective daily % move of one row, same rule as scripts/price_changes.py:
+  // close-to-close up to 2018-02-18 (that era's per_change is often a placeholder 0)
+  // with moves beyond the old +-10% limit treated as bonus/rights adjustments
+  // (null), and ShareSansar's per_change afterwards (measured against the adjusted
+  // previous close).
+  const LEGACY_END = "2018-02-18";
+  function effChange(date, close, prevClose, perChange) {
+    if (prevClose == null) return null;
+    const ret = (close / prevClose - 1) * 100;
+    if (date <= LEGACY_END) return Math.abs(ret) <= 10.5 ? ret : null;
+    return perChange;
+  }
+
   async function loadCompany(symbol) {
-    if (companyCache.has(symbol)) return companyCache.get(symbol);
+    const key = symbol + (state.adj ? "|adj" : "|raw");
+    if (companyCache.has(key)) return companyCache.get(key);
     const res = await fetch("data/company-wise/" + encodeURIComponent(symbol) + ".csv");
     if (!res.ok) throw new Error("No data file for " + symbol);
     const lines = (await res.text()).trim().split(/\r?\n/);
     const head = lines.shift().split(",");
     const col = (name) => head.indexOf(name);
-    const iD = col("published_date"), iO = col("open"), iH = col("high"), iL = col("low"), iC = col("close"), iT = col("traded_amount");
+    const iD = col("published_date"), iO = col("open"), iH = col("high"), iL = col("low"), iC = col("close"),
+      iT = col("traded_amount"), iP = col("per_change");
+    const num = (s) => { const v = parseFloat(s); return isFinite(v) ? v : null; };
+    const rows = [];
+    for (const line of lines) {
+      const f = line.split(",");
+      const c = num(f[iC]);
+      if (c == null || c <= 0) continue;  // unlisted/suspended placeholder rows
+      rows.push({ d: f[iD], o: num(f[iO]) || c, h: num(f[iH]) || c, l: num(f[iL]) || c, c, t: num(f[iT]), pc: num(f[iP]) });
+    }
+    // Back-adjust for bonus/rights issues: where the raw close-to-close move differs
+    // from the effective move, scale every earlier price by the ratio, so charts and
+    // moving averages don't show a fake crash on book-closure days.
+    const factor = new Array(rows.length).fill(1);
+    let adjusted = 0;
+    if (state.adj) {
+      let cum = 1;
+      for (let k = rows.length - 1; k >= 1; k--) {
+        factor[k] = cum;
+        const raw = rows[k].c / rows[k - 1].c;
+        const eff = effChange(rows[k].d, rows[k].c, rows[k - 1].c, rows[k].pc);
+        const real = 1 + (eff == null ? 0 : eff) / 100;
+        if (Math.abs(raw - real) > 0.002 && real > 0) { cum *= raw / real; adjusted++; }
+      }
+      if (rows.length) factor[0] = cum;
+    }
     const pos = new Map(dates.map((d, i) => [d, i]));
     const n = dates.length;
     const p = { o: new Array(n).fill(null), h: new Array(n).fill(null), l: new Array(n).fill(null), c: new Array(n).fill(null), t: new Array(n).fill(null) };
-    const num = (s) => { const v = parseFloat(s); return isFinite(v) ? v : null; };
-    for (const line of lines) {
-      const f = line.split(",");
-      const i = pos.get(f[iD]);
-      if (i === undefined) continue;
-      const c = num(f[iC]);
-      if (c == null || c <= 0) continue;  // unlisted/suspended placeholder rows
-      p.c[i] = c;
-      p.o[i] = num(f[iO]) || c; p.h[i] = num(f[iH]) || c; p.l[i] = num(f[iL]) || c;
-      p.t[i] = num(f[iT]);
-    }
+    rows.forEach((r, k) => {
+      const i = pos.get(r.d);
+      if (i === undefined) return;
+      const m = factor[k];
+      p.o[i] = r.o * m; p.h[i] = r.h * m; p.l[i] = r.l * m; p.c[i] = r.c * m; p.t[i] = r.t;
+    });
     p.label = symbol;
     p.kind = typeOf[symbol];
+    p.adjusted = adjusted;
     finishPrice(p);
-    companyCache.set(symbol, p);
+    companyCache.set(key, p);
     return p;
   }
 
@@ -670,7 +707,8 @@
     const maItems = (value) => state.mas.slice().sort((x, y) => x - y)
       .map((n) => `<span class="item">${maSwatch(n)}MA${n} ${value(n)}</span>`).join("");
 
-    let html = `<span class="item"><b>${esc(p.label)}</b>${p.kind ? `<span class="tag">${TYPE_LABEL[p.kind]}</span>` : ""}</span>`;
+    let html = `<span class="item"><b>${esc(p.label)}</b>${p.kind ? `<span class="tag">${TYPE_LABEL[p.kind]}</span>` : ""}` +
+      (p.adjusted ? `<span class="tag" title="Earlier prices scaled for ${p.adjusted} bonus/rights adjustment(s)">adjusted</span>` : "") + `</span>`;
     if (at >= 0 && p.c[at] != null) {
       const chg = p.prev[at] ? ((p.c[at] - p.prev[at]) / p.prev[at]) * 100 : null;
       html += `<span class="item">${dates[at]}</span>` +
@@ -804,6 +842,7 @@
   function wireControls() {
     $("t-mf").addEventListener("click", () => { state.mf = !state.mf; renderBreadthAll(true); writeHash(); });
     $("t-deb").addEventListener("click", () => { state.deb = !state.deb; renderBreadthAll(true); writeHash(); });
+    $("t-adj").addEventListener("change", (e) => { state.adj = e.target.checked; selectSymbol(state.symbol); });
     for (const b of document.querySelectorAll("#ranges button")) {
       b.addEventListener("click", () => { state.range = b.dataset.range; applyRange(); writeHash(); });
     }
@@ -876,6 +915,7 @@
     }
     $("symbols").innerHTML = opts.join("");
     for (const k of Object.keys(counts)) $("n-" + k).textContent = counts[k];
+    $("t-adj").checked = state.adj;
     renderFreshness();
 
     buildForward();

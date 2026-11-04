@@ -7,7 +7,9 @@ plain-text report; nothing is written to disk. Run from anywhere:
 
 Method
   * Breadth uses ordinary shares only (mutual funds and debentures removed;
-    including them changes the results by < 0.01 in rank correlation).
+    including them changes the results by < 0.01 in rank correlation), and
+    each day's move comes from price_changes.effective_change() (repairs the
+    pre-2018 placeholder per_change values).
   * Study window 2013-01-01 .. latest. Before 2013 fewer than ~45 shares
     traded on a typical day, too few for breadth to mean much.
   * Every result is shown for two periods: 2013-2019 ("in-sample") and
@@ -27,6 +29,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from price_changes import effective_change  # noqa: E402
 from securities import EQUITY, load_companies  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,11 +46,13 @@ def load_panel():
     frames = []
     for _, kind, df in load_companies():
         if kind == EQUITY:
-            frames.append(df[["published_date", "close", "per_change", "traded_amount"]])
+            df = df[["published_date", "close", "per_change", "traded_amount"]].copy()
+            df["chg"] = effective_change(df)
+            frames.append(df)
     c = pd.concat(frames)
-    c = c[c.close > 0]
+    c = c[c.chg.notna()]
     c["published_date"] = pd.to_datetime(c["published_date"])
-    up, dn = c.per_change > 0, c.per_change < 0
+    up, dn = c.chg > 0, c.chg < 0
     breadth = pd.DataFrame({
         "A": up.groupby(c.published_date).sum(),
         "D": dn.groupby(c.published_date).sum(),
