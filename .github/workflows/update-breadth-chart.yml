@@ -57,6 +57,11 @@ jobs:
       - name: Classify securities (stock / mutual fund / debenture)
         run: python scripts/securities.py
 
+      - name: Fill in / verify stock sectors from ShareSansar
+        # Only looks up rows not yet verified (first run: all; then new listings).
+        continue-on-error: true
+        run: python scripts/sectors.py
+
       - name: Render charts
         run: python scripts/plot_chart.py
 
@@ -69,7 +74,7 @@ jobs:
       - name: Commit outputs
         id: commit
         run: |
-          git add data/nepse-index.csv data/market-breadth.csv data/combined.csv data/security-types.csv data/signal-log.csv charts/
+          git add data/nepse-index.csv data/market-breadth.csv data/combined.csv data/security-types.csv data/sectors.csv data/signal-log.csv charts/
           if git diff --staged --quiet; then
             echo "No changes to commit."
             echo "changed=false" >> "$GITHUB_OUTPUT"

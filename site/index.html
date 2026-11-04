@@ -66,6 +66,9 @@
         <button type="button" data-pane="breadth">Advancers / decliners</button>
         <button type="button" data-pane="mcclellan">McClellan</button>
         <button type="button" data-pane="flow">Money flow</button>
+        <button type="button" data-pane="above50">% above 50d MA</button>
+        <button type="button" data-pane="hilo">52w highs/lows</button>
+        <button type="button" data-pane="rs">Avg stock vs NEPSE</button>
       </div>
     </div>
 
@@ -79,6 +82,18 @@
     <div class="status" id="status" hidden></div>
   </main>
   <p class="hint">Scroll or pinch to zoom · drag to pan · double-click the price axis to reset its scale. ▲▼ on the AD line mark the crossover chosen below.</p>
+
+  <section class="sectors" id="sectors" aria-labelledby="sec-h">
+    <div class="sec-head">
+      <h2 id="sec-h">Sectors</h2>
+      <button type="button" class="btn" id="sec-all">Count all sectors</button>
+    </div>
+    <p class="fine" id="sector-note"></p>
+    <div class="table-wrap">
+      <table id="sector-table" class="sector-table"></table>
+    </div>
+    <p class="fine">Returns are for the <em>average</em> stock in each sector (equal-weight, bonus/rights-adjusted), so they show how most shares did, not the sector's big caps. Tick sectors to choose what counts in breadth: the AD line, lower pane, score and signals all recompute. Sectors come from <code>data/sectors.csv</code>, filled in from ShareSansar by GitHub Actions.</p>
+  </section>
 
   <section class="signals" id="signals" aria-labelledby="sig-h">
     <div class="sec-head">
@@ -133,6 +148,10 @@
       <article class="card">
         <h3>Textbook divergences fail on NEPSE</h3>
         <p>In US-style breadth analysis, an index making new highs without the AD line is a warning. Here it wasn't: those days were followed by <b>+3.0%</b> (2013–19) and <b>+2.6%</b> (2020–26) over 20 days, better than average. NEPSE highs tend to keep running. Breadth thrusts and washouts (very low % advancing) were not reliable turning points either. This is a momentum market: weak breadth is a reason to wait, not to bottom-fish.</p>
+      </article>
+      <article class="card">
+        <h3>Slower participation readings faded after 2020</h3>
+        <p>The share of stocks above their 50-day average and the count of 52-week highs minus lows both predicted the next week before 2020 (rank correlation 0.13), but not since (0.03). The average stock's strength against NEPSE never predicted the index at all. They are on the chart (lower pane) as context: they describe how broad a move is, not where it goes next. That is why they are not part of the score.</p>
       </article>
       <article class="card">
         <h3>Mutual funds don't change the signals</h3>

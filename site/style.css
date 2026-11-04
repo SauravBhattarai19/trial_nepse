@@ -341,3 +341,23 @@ tbody tr:last-child td { border-bottom: 0; }
 
 .adj-row { font-size: 12px; color: var(--muted); }
 .adj-row label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+
+/* sector table */
+.sectors { margin: 8px 0 28px; }
+.sectors .sec-head .btn { margin-left: 0; }
+.sectors .btn:disabled { opacity: 0.45; cursor: default; }
+.sector-table th, .sector-table td { text-align: right; }
+.sector-table th.ck, .sector-table td.ck { width: 28px; text-align: center; padding-right: 0; }
+.sector-table td.nm { text-align: left; white-space: nowrap; }
+.sector-table th:nth-child(2) { text-align: left; }
+.sector-table tr.off td:not(.ck) { opacity: 0.45; }
+.sector-table .sort { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.sector-table .sort.on { color: var(--ink); font-weight: 600; }
+.sector-table .only { border: 1px solid var(--border); background: var(--surface); color: var(--muted); border-radius: 5px; font: inherit; font-size: 11px; padding: 0 5px; margin-left: 6px; cursor: pointer; }
+.sector-table .only:hover { color: var(--accent); border-color: var(--accent); }
+.adbar { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.split { position: relative; display: inline-block; width: 70px; height: 8px; border-radius: 2px; background: var(--down); overflow: hidden; }
+.split .sa { position: absolute; left: 0; top: 0; bottom: 0; background: var(--up); border-right: 2px solid var(--surface); }
+.adbar .cnt { min-width: 52px; color: var(--ink-2); }
+.ad-h { text-align: right; }
+.chip:disabled { opacity: 0.45; cursor: default; }

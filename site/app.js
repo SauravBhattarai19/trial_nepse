@@ -27,7 +27,8 @@
   const MA_MAX = 3;          // at most 3 lines: no 4-colour set stays distinguishable in every combination
   const MA_MIN_DAYS = 2, MA_MAX_DAYS = 1000;
 
-  const PANES = ["breadth", "mcclellan", "flow"];
+  const PANES = ["breadth", "mcclellan", "flow", "above50", "hilo", "rs"];
+  const BKEYS = ["a", "d", "u", "ut", "dt", "ab", "el", "hi", "lo", "se", "ne"];
   const PERIODS = {
     all: { from: "2013-01-01", to: "9999", label: "since 2013" },
     is: { from: "2013-01-01", to: "2020-01-01", label: "2013–2019" },
@@ -37,6 +38,7 @@
   const state = {
     mf: true, deb: true, symbol: "NEPSE", range: "1Y", mas: MA_DEFAULT.slice(), adj: true,
     pane: "breadth", sig: null /* null = default for the active MAs */, period: "all",
+    sec: null,   // null = every sector; otherwise the list of sectors counted in breadth
   };
   const maSlot = new Map();  // period -> colour slot 0..2; a line keeps its colour while it is on
   let data = null;          // market.json
@@ -56,6 +58,7 @@
     if (p.get("s")) state.symbol = p.get("s").toUpperCase();
     if (p.get("r") && (RANGE_MONTHS[p.get("r")] || p.get("r") === "ALL")) state.range = p.get("r");
     if (PANES.includes(p.get("p"))) state.pane = p.get("p");
+    if (p.get("sec")) state.sec = p.get("sec").split("|");
     if (p.get("sig")) state.sig = p.get("sig");
     if (PERIODS[p.get("per")]) state.period = p.get("per");
     if (p.has("ma")) {
@@ -74,9 +77,10 @@
     const mas = state.mas.slice().sort((x, y) => x - y).join(",");
     if (mas !== MA_DEFAULT.join(",")) p.set("ma", mas || "0");
     if (state.pane !== "breadth") p.set("p", state.pane);
+    if (state.sec) p.set("sec", state.sec.join("|"));
     if (state.sig && state.sig !== defaultSig()) p.set("sig", state.sig);
     if (state.period !== "all") p.set("per", state.period);
-    const h = p.toString().replace(/%2C/g, ",").replace(/%3A/g, ":");
+    const h = p.toString().replace(/%2C/g, ",").replace(/%3A/g, ":").replace(/%7C/g, "|");
     history.replaceState(null, "", h ? "#" + h : location.pathname + location.search);
   }
 
@@ -117,22 +121,32 @@
     return owner.maCache.get(n);
   }
 
+  // Breadth universe: every ordinary share plus mutual funds / debentures if their
+  // chips are on; or, with a sector filter, only the chosen sectors' shares.
+  // Sector arrays start at data.sector_offset (2011).
+  function universeGroups() {
+    if (state.sec != null) return state.sec.filter((x) => data.sectors[x]).map((x) => [data.sectors[x], data.sector_offset]);
+    const out = [[data.breadth.equity, 0]];
+    if (state.mf) out.push([data.breadth.mutual_fund, 0]);
+    if (state.deb) out.push([data.breadth.debenture, 0]);
+    return out;
+  }
+
   function computeBreadth() {
-    const kinds = ["equity"];
-    if (state.mf) kinds.push("mutual_fund");
-    if (state.deb) kinds.push("debenture");
     const n = dates.length;
-    const z = () => new Array(n).fill(0);
-    const a = z(), d = z(), u = z(), ut = z(), dt = z();
-    for (const k of kinds) {
-      const b = data.breadth[k];
-      for (let i = 0; i < n; i++) { a[i] += b.a[i]; d[i] += b.d[i]; u[i] += b.u[i]; ut[i] += b.ut[i]; dt[i] += b.dt[i]; }
+    const b = {};
+    for (const k of BKEYS) b[k] = new Array(n).fill(0);
+    for (const [g, off] of universeGroups()) {
+      for (const k of BKEYS) {
+        const src = g[k], dst = b[k];
+        for (let j = 0; j < src.length; j++) dst[j + off] += src[j];
+      }
     }
-    const net = a.map((x, i) => x - d[i]);
-    const ad = [];
+    b.net = b.a.map((x, i) => x - b.d[i]);
+    b.ad = [];
     let run = 0;
-    for (const x of net) { run += x; ad.push(run); }
-    breadth = { a, d, u, net, ad, ut, dt };
+    for (const x of b.net) { run += x; b.ad.push(run); }
+    breadth = b;
     computeIndicators(breadth);
   }
 
@@ -166,6 +180,17 @@
     b.pctAdv10 = ema(b.a.map((x, i) => (x + b.d[i] ? x / (x + b.d[i]) : null)), 10);
     b.flow = b.ut.map((x, i) => (x + b.dt[i] > 0 ? x / (x + b.dt[i]) : null));
     b.flow10 = ema(b.flow, 10);
+    // participation readings (context only: they predicted well before 2020 but not since)
+    b.above50 = b.el.map((e, i) => (e >= 10 ? (b.ab[i] / e) * 100 : null));
+    // equal-weight "average stock" level and its strength relative to NEPSE
+    b.ew = [];
+    let lvl = 1;
+    for (let i = 0; i < n; i++) { if (b.ne[i] > 0) lvl *= 1 + b.se[i] / b.ne[i] / 100; b.ew.push(lvl); }
+    const ix = data.index.c;
+    let lastC = null, lastI = -1;
+    for (let i = n - 1; i >= 0; i--) if (ix[i] != null) { lastC = ix[i]; lastI = i; break; }
+    const rsEnd = lastI >= 0 ? b.ew[lastI] / lastC : 1;
+    b.rs = b.ew.map((e, i) => (ix[i] == null || b.ne[i] === 0 ? null : (e / ix[i] / rsEnd) * 100));   // = 100 on the last day
     const ma10 = maOf(b, b.ad, 10);
     b.comp = [];
     b.score = new Array(n).fill(null);
@@ -343,6 +368,10 @@
       dec: { color: t.down, priceLineVisible: false, lastValueVisible: false, priceFormat: { type: "price", precision: 0, minMove: 1 } },
       mco: { priceLineVisible: false, lastValueVisible: true, priceFormat: { type: "price", precision: 0, minMove: 1 } },
       flow: { color: t.ink, lineWidth: 2, priceLineVisible: false, lastValueVisible: true, priceFormat: { type: "price", precision: 0, minMove: 1 } },
+      above50: { color: t.ink, lineWidth: 2, priceLineVisible: false, lastValueVisible: true, priceFormat: { type: "price", precision: 0, minMove: 1 } },
+      hi: { color: t.up, priceLineVisible: false, lastValueVisible: false, priceFormat: { type: "price", precision: 0, minMove: 1 } },
+      lo: { color: t.down, priceLineVisible: false, lastValueVisible: false, priceFormat: { type: "price", precision: 0, minMove: 1 } },
+      rs: { color: t.ink, lineWidth: 2, priceLineVisible: false, lastValueVisible: true, priceFormat: { type: "price", precision: 1, minMove: 0.1 } },
     };
   }
 
@@ -380,8 +409,13 @@
       dec: charts.hist.addHistogramSeries(so.dec),
       mco: charts.hist.addHistogramSeries(so.mco),
       flow: charts.hist.addLineSeries(so.flow),
+      above50: charts.hist.addLineSeries(so.above50),
+      hi: charts.hist.addHistogramSeries(so.hi),
+      lo: charts.hist.addHistogramSeries(so.lo),
+      rs: charts.hist.addLineSeries(so.rs),
     };
-    flowMid = series.flow.createPriceLine({ price: 50, color: t.muted, lineWidth: 1, lineStyle: LC.LineStyle.Dashed, axisLabelVisible: false, title: "" });
+    const mid = (sr, price) => sr.createPriceLine({ price, color: t.muted, lineWidth: 1, lineStyle: LC.LineStyle.Dashed, axisLabelVisible: false, title: "" });
+    flowMid = [mid(series.flow, 50), mid(series.above50, 50), mid(series.rs, 100)];
     charts.price.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     charts.hist.priceScale("right").applyOptions({ scaleMargins: { top: 0.18, bottom: 0.04 } });
 
@@ -402,6 +436,9 @@
       if (name === "ad") return [series.ad, breadth.ad[i]];
       if (state.pane === "mcclellan") return [series.mco, mcLive()[i]];
       if (state.pane === "flow") return [series.flow, breadth.flow10[i] == null ? null : breadth.flow10[i] * 100];
+      if (state.pane === "above50") return [series.above50, breadth.above50[i]];
+      if (state.pane === "hilo") return [series.hi, breadth.hi[i]];
+      if (state.pane === "rs") return [series.rs, breadth.rs[i]];
       return [series.adv, breadth.a[i]];
     };
     let syncingCross = false;
@@ -438,7 +475,7 @@
     charts.hist.applyOptions(chartOptions(t, true, true, true));
     const so = seriesOptions(t);
     for (const k of Object.keys(series)) series[k].applyOptions(so[k]);
-    flowMid.applyOptions({ color: t.muted });
+    for (const m of flowMid) m.applyOptions({ color: t.muted });
     setPane(state.pane);
     setBreadthData();
     renderMas();
@@ -467,6 +504,10 @@
     series.dec.setData(dates.map((time, i) => ({ time, value: -b.d[i] })));
     setMcoData();
     series.flow.setData(lineData(b.flow10.map((x) => (x == null ? null : x * 100))));
+    series.above50.setData(lineData(b.above50));
+    series.hi.setData(dates.map((time, i) => ({ time, value: b.hi[i] })));
+    series.lo.setData(dates.map((time, i) => ({ time, value: -b.lo[i] })));
+    series.rs.setData(lineData(b.rs));
   }
 
   function setMcoData() {
@@ -480,6 +521,10 @@
     series.dec.applyOptions({ visible: mode === "breadth" });
     series.mco.applyOptions({ visible: mode === "mcclellan" });
     series.flow.applyOptions({ visible: mode === "flow" });
+    series.above50.applyOptions({ visible: mode === "above50" });
+    series.hi.applyOptions({ visible: mode === "hilo" });
+    series.lo.applyOptions({ visible: mode === "hilo" });
+    series.rs.applyOptions({ visible: mode === "rs" });
     for (const btn of document.querySelectorAll("#panes-mode button")) btn.setAttribute("aria-pressed", String(btn.dataset.pane === mode));
   }
 
@@ -554,6 +599,78 @@
     setMcoData();
     renderSignals();
     renderLegends(null);
+    writeHash();
+  }
+
+  // ---------- sectors ----------
+  const SECTOR_WINDOWS = [["1D", 1], ["1W", 5], ["1M", 21], ["3M", 63], ["1Y", 250]];
+  let sectorSort = { key: "1M", dir: -1 };
+  let sectorStats = null;
+
+  // Per-sector equal-weight returns etc. (independent of the breadth universe; computed once).
+  function buildSectorStats() {
+    const off = data.sector_offset, n = dates.length, last = n - 1;
+    const counts = {};
+    for (const [, kind, , sec] of data.securities) if (kind === "equity") counts[sec] = (counts[sec] || 0) + 1;
+    const lastIdx = idxDays.length - 1;
+    sectorStats = Object.entries(data.sectors).map(([name, g]) => {
+      const lvl = new Array(n).fill(null);
+      let L = 1;
+      for (let j = 0; j < g.se.length; j++) { if (g.ne[j] > 0) L *= 1 + g.se[j] / g.ne[j] / 100; lvl[j + off] = L; }
+      const ret = {};
+      for (const [k, w] of SECTOR_WINDOWS) {
+        const back = idxDays[lastIdx - w];
+        ret[k] = back != null && back >= off && lvl[back] ? (lvl[last] / lvl[back] - 1) * 100 : null;
+      }
+      const j = last - off;
+      return { name, n: counts[name] || 0, a: g.a[j], d: g.d[j], u: g.u[j], ret,
+        above50: g.el[j] >= 3 ? (g.ab[j] / g.el[j]) * 100 : null };
+    });
+  }
+
+  function renderSectors() {
+    if (!sectorStats) return;
+    const t = theme();
+    const on = (name) => state.sec == null || state.sec.includes(name);
+    const rows = sectorStats.slice().sort((x, y) => {
+      const k = sectorSort.key;
+      const vx = k === "name" ? x.name : k === "n" ? x.n : k === "above50" ? x.above50 : x.ret[k];
+      const vy = k === "name" ? y.name : k === "n" ? y.n : k === "above50" ? y.above50 : y.ret[k];
+      if (vx == null) return 1;
+      if (vy == null) return -1;
+      return (vx > vy ? 1 : vx < vy ? -1 : 0) * sectorSort.dir;
+    });
+    const heat = (v) => {
+      if (v == null) return "";
+      const a = Math.min(Math.abs(v) / 10, 1) * 0.35;
+      const rgb = v >= 0 ? t.up : t.down;
+      return ` style="background:color-mix(in srgb, ${rgb} ${Math.round(a * 100)}%, transparent)"`;
+    };
+    const head = (key, label) => `<th><button type="button" data-sort="${key}" class="sort${sectorSort.key === key ? " on" : ""}">${label}${sectorSort.key === key ? (sectorSort.dir < 0 ? " ↓" : " ↑") : ""}</button></th>`;
+    $("sector-table").innerHTML =
+      `<thead><tr><th class="ck"></th>${head("name", "Sector")}${head("n", "Stocks")}<th class="ad-h">Today ▲ / ▼</th>` +
+      SECTOR_WINDOWS.map(([k]) => head(k, k)).join("") + head("above50", "&gt; 50d MA") + `</tr></thead><tbody>` +
+      rows.map((r) => {
+        const tot = r.a + r.d;
+        const wa = tot ? (r.a / tot) * 100 : 0;
+        return `<tr class="${on(r.name) ? "" : "off"}">` +
+          `<td class="ck"><input type="checkbox" data-sec="${esc(r.name)}" ${on(r.name) ? "checked" : ""} aria-label="Count ${esc(r.name)} in breadth"></td>` +
+          `<td class="nm">${esc(r.name)} <button type="button" class="only" data-only="${esc(r.name)}">only</button></td>` +
+          `<td>${r.n}</td>` +
+          `<td class="adbar"><span class="split" title="${r.a} up, ${r.d} down, ${r.u} unchanged"><span class="sa" style="width:${wa}%"></span></span><span class="cnt">${r.a} / ${r.d}</span></td>` +
+          SECTOR_WINDOWS.map(([k]) => `<td class="${cls(r.ret[k])}"${heat(r.ret[k])}>${r.ret[k] == null ? "–" : signed(r.ret[k], (v) => v.toFixed(1)) + "%"}</td>`).join("") +
+          `<td>${r.above50 == null ? "–" : Math.round(r.above50) + "%"}</td></tr>`;
+      }).join("") + `</tbody>`;
+    const nOn = state.sec == null ? sectorStats.length : state.sec.length;
+    $("sector-note").textContent = state.sec == null ? "All sectors count in breadth." : `Breadth counts ${nOn} of ${sectorStats.length} sectors (the whole page follows this choice).`;
+    $("sec-all").disabled = state.sec == null;
+  }
+
+  function setSectors(list) {
+    const all = sectorStats.map((r) => r.name);
+    state.sec = !list || list.length === all.length ? null : list;
+    renderBreadthAll(true);
+    renderSectors();
     writeHash();
   }
 
@@ -728,6 +845,7 @@
       `<span class="item">${sw(t.ad, 1)}<b>${fmtInt(b.ad[bi])}</b> <span class="${cls(b.net[bi])}">(${signed(b.net[bi], fmtInt)})</span></span>` +
       maItems((n) => fmtInt(maOf(b, b.ad, n)[bi]));
 
+    if (state.sec) $("lg-ad").innerHTML += `<span class="item"><span class="tag">${state.sec.length === 1 ? esc(state.sec[0]) + " only" : state.sec.length + " sectors"}</span></span>`;
     const sg = activeSig();
     if (sg) $("lg-ad").innerHTML += `<span class="item opt"><span class="pos">▲</span><span class="neg">▼</span> ${esc(sg.label)} crosses</span>`;
 
@@ -744,6 +862,25 @@
         `<span class="item"><b>Money flow, 10-day</b></span>` +
         `<span class="item">${sw(t.ink, 1)}${v == null ? "–" : Math.round(v * 100) + "%"} of turnover in rising stocks</span>` +
         `<span class="item opt">today ${b.flow[bi] == null ? "–" : Math.round(b.flow[bi] * 100) + "%"} · dashed line = 50%</span>`;
+    } else if (state.pane === "above50") {
+      const v = b.above50[bi];
+      $("lg-hist").innerHTML =
+        `<span class="item"><b>% above 50-day average</b></span>` +
+        `<span class="item">${sw(t.ink, 1)}${v == null ? "–" : Math.round(v) + "%"} (${fmtInt(b.ab[bi])} of ${fmtInt(b.el[bi])})</span>` +
+        `<span class="item opt">bonus-adjusted prices · context only, not predictive since 2020</span>`;
+    } else if (state.pane === "hilo") {
+      $("lg-hist").innerHTML =
+        `<span class="item"><b>52-week highs / lows</b></span>` +
+        `<span class="item">${sw(t.up)}New highs ${fmtInt(b.hi[bi])}</span>` +
+        `<span class="item">${sw(t.down)}New lows ${fmtInt(b.lo[bi])}</span>`;
+    } else if (state.pane === "rs") {
+      const v = b.rs[bi];
+      const since = v == null ? null : (100 / v - 1) * 100;
+      $("lg-hist").innerHTML =
+        `<span class="item"><b>Average stock vs NEPSE</b></span>` +
+        `<span class="item">${sw(t.ink, 1)}${v == null ? "–" : v.toFixed(1)}</span>` +
+        (since == null || bi === dates.length - 1 ? `<span class="item opt">equal-weight average ÷ NEPSE, = 100 on the latest day · rising = most stocks beating the index</span>`
+          : `<span class="item">since ${dates[bi]}: average stock <span class="${cls(since)}">${signed(since)}%</span> vs NEPSE</span>`);
     } else {
       $("lg-hist").innerHTML =
         `<span class="item"><b>Daily breadth</b></span>` +
@@ -795,6 +932,10 @@
     renderTable();
     renderSignals();
     renderLegends(null);
+    for (const id of ["t-mf", "t-deb"]) {
+      $(id).disabled = state.sec != null;
+      $(id).title = state.sec != null ? "Not counted while a sector filter is on" : "";
+    }
     $("t-mf").setAttribute("aria-pressed", String(state.mf));
     $("t-deb").setAttribute("aria-pressed", String(state.deb));
   }
@@ -851,6 +992,26 @@
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
     input.addEventListener("focus", () => input.select());
     $("download").addEventListener("click", downloadCsv);
+    $("sector-table").addEventListener("click", (e) => {
+      const sortBtn = e.target.closest("button[data-sort]");
+      if (sortBtn) {
+        const k = sortBtn.dataset.sort;
+        sectorSort = { key: k, dir: sectorSort.key === k ? -sectorSort.dir : k === "name" ? 1 : -1 };
+        renderSectors();
+        return;
+      }
+      const only = e.target.closest("button[data-only]");
+      if (only) setSectors([only.dataset.only]);
+    });
+    $("sector-table").addEventListener("change", (e) => {
+      const box = e.target.closest("input[data-sec]");
+      if (!box) return;
+      const cur = new Set(state.sec == null ? sectorStats.map((r) => r.name) : state.sec);
+      if (box.checked) cur.add(box.dataset.sec); else cur.delete(box.dataset.sec);
+      if (!cur.size) { box.checked = true; return; }   // keep at least one sector
+      setSectors(sectorStats.map((r) => r.name).filter((x) => cur.has(x)));
+    });
+    $("sec-all").addEventListener("click", () => setSectors(null));
     for (const btn of document.querySelectorAll("#panes-mode button")) {
       btn.addEventListener("click", () => { setPane(btn.dataset.pane); renderLegends(null); writeHash(); });
     }
@@ -908,10 +1069,10 @@
     dates = data.dates;
     const counts = { equity: 0, mutual_fund: 0, debenture: 0 };
     const opts = ['<option value="NEPSE">NEPSE Index</option>'];
-    for (const [sym, kind] of data.securities) {
+    for (const [sym, kind, , sec] of data.securities) {
       typeOf[sym] = kind;
       counts[kind]++;
-      opts.push(`<option value="${esc(sym)}">${TYPE_LABEL[kind]}</option>`);
+      opts.push(`<option value="${esc(sym)}">${kind === "equity" && sec ? esc(sec) : TYPE_LABEL[kind]}</option>`);
     }
     $("symbols").innerHTML = opts.join("");
     for (const k of Object.keys(counts)) $("n-" + k).textContent = counts[k];
@@ -919,11 +1080,15 @@
     renderFreshness();
 
     buildForward();
+    if (state.sec) state.sec = state.sec.filter((x) => data.sectors[x]);
+    if (state.sec && !state.sec.length) state.sec = null;
+    buildSectorStats();
     createCharts();
     setPane(state.pane);
     price = priceFromIndex();
     setPriceData();
     renderBreadthAll(false);
+    renderSectors();
     applyRange();
     wireControls();
     status.hidden = true;
