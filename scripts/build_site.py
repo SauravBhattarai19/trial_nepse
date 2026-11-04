@@ -36,16 +36,19 @@ def main():
     index = pd.read_csv(INDEX_PATH).set_index("published_date")
     index = index[~index.index.duplicated(keep="last")]
 
-    # counts[type][date] = [advancers, decliners, unchanged]
+    # counts[type][date] = [advancers, decliners, unchanged,
+    #                       turnover in advancers, turnover in decliners]
     counts = {kind: {} for kind in TYPES}
     securities = []
     for symbol, kind, df in load_companies():
         securities.append([symbol, kind, str(df["published_date"].iloc[-1])])
         per_type = counts[kind]
-        for date, change in zip(df["published_date"].astype(str), df["per_change"]):
-            row = per_type.setdefault(date, [0, 0, 0])
+        for date, change, amount in zip(df["published_date"].astype(str), df["per_change"], df["traded_amount"]):
+            row = per_type.setdefault(date, [0, 0, 0, 0.0, 0.0])
             # same rule as build_breadth.py: NaN (first row) counts as unchanged
             row[0 if change > 0 else 1 if change < 0 else 2] += 1
+            if amount == amount and (change > 0 or change < 0):   # skip NaN turnover
+                row[3 if change > 0 else 4] += amount
 
     # Timeline starts at the first NEPSE index day (1997); breadth before it
     # is a single security and only adds an empty stretch to the chart.
@@ -54,6 +57,8 @@ def main():
         d for d in set(index.index).union(*(c.keys() for c in counts.values()))
         if d >= start
     )
+
+    EMPTY = (0, 0, 0, 0.0, 0.0)
 
     def col(name):
         series = index[name].reindex(dates)
@@ -67,10 +72,18 @@ def main():
             "o": col("open"), "h": col("high"), "l": col("low"),
             "c": col("close"), "t": col("turnover"),
         },
+        # a/d/u: advancer/decliner/unchanged counts; ut/dt: turnover (NPR lakh)
+        # traded in advancing / declining securities, for the money-flow reading
         "breadth": {
             kind: {
-                key: [counts[kind].get(d, (0, 0, 0))[i] for d in dates]
-                for i, key in enumerate(("a", "d", "u"))
+                **{
+                    key: [counts[kind].get(d, EMPTY)[i] for d in dates]
+                    for i, key in enumerate(("a", "d", "u"))
+                },
+                **{
+                    key: [round(counts[kind].get(d, EMPTY)[i] / 1e5, 1) for d in dates]
+                    for i, key in ((3, "ut"), (4, "dt"))
+                },
             }
             for kind in TYPES
         },
