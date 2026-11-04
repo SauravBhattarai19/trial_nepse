@@ -81,6 +81,13 @@ drag to pan). You can:
 
 - switch the lower pane between advancers/decliners, the **McClellan
   oscillator** and **money flow** (10-day share of turnover in rising stocks)
+- use the **Sectors** table: each sector's advancers/decliners today, the
+  average stock's return over 1D/1W/1M/3M/1Y (equal-weight, adjusted) and
+  % above its 50-day average; tick sectors, or press *only*, to make the whole
+  page (AD line, lower pane, score, signals) count just those shares
+- switch the lower pane to **% above 50-day MA**, **52-week highs/lows** or
+  **average stock vs NEPSE** (equal-weight ÷ index: falling means a few big
+  shares are carrying the index)
 - read the **Breadth signals** section: a live 0–5 breadth score, what NEPSE
   did after each score historically, and a **crossover check** that marks
   AD-line crossovers (AD × MA *n*, or MA *a* × MA *b*) on the chart and shows
@@ -113,6 +120,10 @@ day's follow-through, so close-to-close tests overstate any edge).
 - **Textbook divergences fail here:** NEPSE highs without AD-line confirmation
   were followed by *above*-average returns. Breadth thrusts and washouts weren't
   reliable turning points either. NEPSE behaves like a momentum market.
+- **Slower participation readings faded after 2020:** % of stocks above their
+  50-day average and 52-week highs minus lows predicted the next week before
+  2020 (0.13) but not since (0.03); average stock vs NEPSE never did. They are
+  shown as context, not used in the score.
 - **Mutual funds don't change the signals** (< 0.01 difference); excluding them
   is cleaner, not more predictive.
 - **Limits:** the best reading explains only ~1–4% of next-week variation. The big

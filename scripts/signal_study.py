@@ -42,9 +42,25 @@ def ema(s, n):
     return s.ewm(span=n, adjust=False).mean()
 
 
+def participation(companies):
+    """Daily % of shares above their 50-day MA, 52-week highs/lows, equal-weight move."""
+    from build_site import security_series   # noqa: E402  (same definitions as the site)
+    frames = []
+    for _, kind, df in companies:
+        if kind != EQUITY:
+            continue
+        r = security_series(df)
+        frames.append(pd.DataFrame({"date": pd.to_datetime(df["published_date"]).to_numpy(), "el": r["el"],
+                                    "ab": r["el"] & r["ab"], "hi": r["hi"], "lo": r["lo"], "eff": r["eff_ew"]}))
+    c = pd.concat(frames)
+    g = c.groupby("date")
+    return pd.DataFrame({"EL": g.el.sum(), "AB": g.ab.sum(), "HI": g.hi.sum(), "LO": g.lo.sum(), "EW": g.eff.mean()})
+
+
 def load_panel():
     frames = []
-    for _, kind, df in load_companies():
+    companies = list(load_companies())
+    for _, kind, df in companies:
         if kind == EQUITY:
             df = df[["published_date", "close", "per_change", "traded_amount"]].copy()
             df["chg"] = effective_change(df)
@@ -61,7 +77,7 @@ def load_panel():
     })
     ix = pd.read_csv(ROOT / "data" / "nepse-index.csv", parse_dates=["published_date"])
     ix = ix.drop_duplicates("published_date", keep="last").set_index("published_date")
-    p = ix[["open", "close", "turnover"]].join(breadth, how="inner")
+    p = ix[["open", "close", "turnover"]].join(breadth, how="inner").join(participation(companies), how="left")
     return p[p.index >= "2011-01-01"]
 
 
@@ -83,6 +99,10 @@ def build_features(p):
     f["money_flow10"] = ema(p.UT / (p.UT + p.DT).replace(0, np.nan), 10)
     f["vol_ratio"] = p.turnover / p.turnover.rolling(20).mean()
     f["mom20"] = C / C.shift(20) - 1
+    f["pct_above50"] = p.AB / p.EL.replace(0, np.nan)
+    f["hilo10"] = ema((p.HI - p.LO) / tot, 10)                 # net new 52w highs, share of traded
+    ew_level = (1 + p.EW.fillna(0) / 100).cumprod()
+    f["ew_vs_nepse20"] = (ew_level / ew_level.shift(20)) / (C / C.shift(20)) - 1   # avg stock vs index, 20d
     f["ad_dev10"] = f.ad - f.ad.rolling(10).mean()
     f["C"] = C
     comp = pd.DataFrame({
@@ -144,7 +164,8 @@ def main():
 
     print("\n3. Rank correlation of each reading with the TRADEABLE forward return")
     rows = []
-    for x in ("money_flow10", "pct_adv10", "mcclellan", "ad_dev10", "net_ratio", "vol_ratio", "mom20", "score"):
+    for x in ("money_flow10", "pct_adv10", "mcclellan", "ad_dev10", "net_ratio", "pct_above50", "hilo10",
+              "ew_vs_nepse20", "vol_ratio", "mom20", "score"):
         row = {"reading": x}
         for lab, m in periods.items():
             for h in (5, 20, 60):
