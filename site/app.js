@@ -156,8 +156,8 @@
   function computeIndicators(b) {
     const n = b.a.length;
     const ratio = b.a.map((x, i) => (x + b.d[i] ? ((x - b.d[i]) / (x + b.d[i])) * 1000 : null));
-    const e19 = ema(ratio, 19), e39 = ema(ratio, 39);
-    b.mco = e19.map((x, i) => (x == null ? null : x - e39[i]));
+    b.ratio = ratio;
+    b.mco = mcoFor(b, 19, 39);   // the score always uses the classic 19/39 oscillator
     b.msi = [];
     let s = 0;
     for (const x of b.mco) { if (x != null) s += x; b.msi.push(s); }
@@ -174,6 +174,24 @@
       b.score[i] = c.filter(Boolean).length;
     }
   }
+
+  // McClellan-style oscillator for any pair: EMA(fast) - EMA(slow) of net % advancing (x1000).
+  // The lower pane and the crossover check use the user's two shortest moving averages
+  // (classic 19/39 when fewer than two are on); cached per pair like maOf().
+  function mcoFor(b, fast, slow) {
+    if (!b.oscCache) b.oscCache = new Map();
+    const key = fast + "/" + slow;
+    if (!b.oscCache.has(key)) {
+      const ef = ema(b.ratio, fast), es = ema(b.ratio, slow);
+      b.oscCache.set(key, ef.map((x, i) => (x == null ? null : x - es[i])));
+    }
+    return b.oscCache.get(key);
+  }
+  function mcPair() {
+    const ns = state.mas.slice().sort((x, y) => x - y);
+    return ns.length >= 2 ? [ns[0], ns[1]] : [19, 39];
+  }
+  const mcLive = () => mcoFor(breadth, ...mcPair());
 
   // ---------- forward returns (tradeable: act at the next day's open) ----------
   let idxDays = [], posAfter = null;
@@ -345,7 +363,7 @@
     const anchor = (name, i) => {
       if (name === "price") return [series.candles, nearest(price.c, i)];
       if (name === "ad") return [series.ad, breadth.ad[i]];
-      if (state.pane === "mcclellan") return [series.mco, breadth.mco[i]];
+      if (state.pane === "mcclellan") return [series.mco, mcLive()[i]];
       if (state.pane === "flow") return [series.flow, breadth.flow10[i] == null ? null : breadth.flow10[i] * 100];
       return [series.adv, breadth.a[i]];
     };
@@ -410,9 +428,13 @@
     series.ad.setData(lineData(b.ad));
     series.adv.setData(dates.map((time, i) => ({ time, value: b.a[i] })));
     series.dec.setData(dates.map((time, i) => ({ time, value: -b.d[i] })));
-    const t = theme();
-    series.mco.setData(dates.map((time, i) => (b.mco[i] == null ? { time } : { time, value: b.mco[i], color: b.mco[i] >= 0 ? t.up : t.down })));
+    setMcoData();
     series.flow.setData(lineData(b.flow10.map((x) => (x == null ? null : x * 100))));
+  }
+
+  function setMcoData() {
+    const t = theme(), m = mcLive();
+    series.mco.setData(dates.map((time, i) => (m[i] == null ? { time } : { time, value: m[i], color: m[i] >= 0 ? t.up : t.down })));
   }
 
   function setPane(mode) {
@@ -492,6 +514,7 @@
     }
     setMaMessage("");
     renderMas();
+    setMcoData();
     renderSignals();
     renderLegends(null);
     writeHash();
@@ -502,18 +525,21 @@
   // [name, reading when bullish, reading when bearish]
   const COMP_TEXT = [
     ["AD line vs its 10-day MA", "above: more stocks rising than falling lately", "below: more stocks falling than rising lately"],
-    ["McClellan oscillator", "above 0: breadth momentum improving", "below 0: breadth momentum fading"],
+    ["McClellan oscillator (19/39)", "above 0: breadth momentum improving", "below 0: breadth momentum fading"],
     ["10-day % advancing", "above 50%: most stocks rose over two weeks", "below 50%: most stocks fell over two weeks"],
     ["10-day money flow", "above 50%: most turnover went into rising stocks", "below 50%: most turnover went into falling stocks"],
     ["Summation index, 5 days", "rising: the slower breadth trend is up", "falling: the slower breadth trend is down"],
   ];
 
-  // Crossover choices follow the active moving averages: AD line x MA n, and MA a x MA b.
+  // Crossover choices follow the active moving averages: AD line x MA n, MA a x MA b, and the
+  // McClellan oscillator built on the two shortest of them crossing zero.
   function sigOptions() {
     const ns = state.mas.slice().sort((x, y) => x - y);
     const out = ns.map((n) => ({ id: "ad:" + n, label: "AD line × MA" + n, a: null, b: n }));
     for (let i = 0; i < ns.length; i++)
       for (let j = i + 1; j < ns.length; j++) out.push({ id: `ma:${ns[i]}:${ns[j]}`, label: `MA${ns[i]} × MA${ns[j]}`, a: ns[i], b: ns[j] });
+    const [f, sl] = mcPair();
+    out.push({ id: "mco", label: `McClellan ${f}/${sl} × 0`, kind: "mco", a: f, b: sl });
     return out;
   }
   function defaultSig() {
@@ -527,8 +553,8 @@
   }
   function crossEvents(sg) {
     const b = breadth;
-    const fast = sg.a == null ? b.ad : maOf(b, b.ad, sg.a);
-    const slow = maOf(b, b.ad, sg.b);
+    const fast = sg.kind === "mco" ? mcoFor(b, sg.a, sg.b) : sg.a == null ? b.ad : maOf(b, b.ad, sg.a);
+    const slow = sg.kind === "mco" ? fast.map((x) => (x == null ? null : 0)) : maOf(b, b.ad, sg.b);
     const up = [], dn = [];
     let prev = null;
     for (let i = 0; i < dates.length; i++) {
@@ -604,10 +630,11 @@
     for (let i = 0; i < dates.length; i++) if (inPeriod(i) && data.index.c[i] != null) base.push(i);
     const st = [["Bullish crosses ▲", upL], ["Bearish crosses ▼", dnL], ["Any day (baseline)", base]].map(([name, l]) => [name, summarize(l, 5), summarize(l, 20)]);
     const spread5 = st[0][1].avg - st[1][1].avg, spread20 = st[0][2].avg - st[1][2].avg;
-    const what = sg.a == null ? `the AD line moved ${"%DIR%"} its ${sg.b}-day MA` : `the AD line's ${sg.a}-day MA moved ${"%DIR%"} its ${sg.b}-day MA`;
+    const what = sg.kind === "mco" ? `the McClellan oscillator (${sg.a}/${sg.b}) turned ${"%DIR%"}`
+      : sg.a == null ? `the AD line moved ${"%DIR%"} its ${sg.b}-day MA` : `the AD line's ${sg.a}-day MA moved ${"%DIR%"} its ${sg.b}-day MA`;
     $("cross-body").innerHTML =
       (lastEv ? `<p class="latest"><span class="${lastEv.up ? "pos" : "neg"}">${lastEv.up ? "▲ Bullish" : "▼ Bearish"}</span> since ${dates[lastEv.i]}: ` +
-        `${what.replace("%DIR%", lastEv.up ? "above" : "below")}.</p>` : "") +
+        `${what.replace("%DIR%", sg.kind === "mco" ? (lastEv.up ? "positive" : "negative") : lastEv.up ? "above" : "below")}.</p>` : "") +
       `<table class="xt"><thead><tr><th></th><th>Times</th><th>Next 5d</th><th>% up</th><th>Next 20d</th><th>% up</th></tr></thead><tbody>` +
       st.map(([name, s5, s20]) => `<tr><td>${name}</td><td>${fmtInt(s5.n)}</td><td class="${cls(s5.avg)}">${s5.avg == null ? "–" : signed(s5.avg) + "%"}</td>` +
         `<td>${s5.up == null ? "–" : Math.round(s5.up) + "%"}</td><td class="${cls(s20.avg)}">${s20.avg == null ? "–" : signed(s20.avg) + "%"}</td>` +
@@ -667,11 +694,12 @@
     if (sg) $("lg-ad").innerHTML += `<span class="item opt"><span class="pos">▲</span><span class="neg">▼</span> ${esc(sg.label)} crosses</span>`;
 
     if (state.pane === "mcclellan") {
-      const v = b.mco[bi];
+      const [f, sl] = mcPair(), v = mcLive()[bi];
       $("lg-hist").innerHTML =
-        `<span class="item"><b>McClellan oscillator</b></span>` +
+        `<span class="item"><b>McClellan oscillator ${f}/${sl}</b></span>` +
         `<span class="item">${sw(v >= 0 ? t.up : t.down)}<span class="${cls(v)}">${signed(v, fmtInt)}</span></span>` +
-        `<span class="item opt">19/39-day EMA of net % advancing · above 0 = breadth improving</span>`;
+        `<span class="item opt">${f}-day minus ${sl}-day EMA of net % advancing · ` +
+        (state.mas.length >= 2 ? "follows your two shortest moving averages" : "classic setting; turn on two moving averages to change it") + `</span>`;
     } else if (state.pane === "flow") {
       const v = b.flow10[bi];
       $("lg-hist").innerHTML =
