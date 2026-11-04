@@ -338,3 +338,6 @@ tbody tr:last-child td { border-bottom: 0; }
 .fresh { color: var(--ink-2); }
 .fresh.stale { color: var(--ink); background: rgba(250, 178, 25, 0.22); border-radius: 6px; padding: 1px 6px; }
 .fresh.stale::before { content: "⚠ "; }
+
+.adj-row { font-size: 12px; color: var(--muted); }
+.adj-row label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }

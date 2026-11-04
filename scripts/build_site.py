@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from price_changes import effective_change
 from securities import COMPANY_DIR, TYPES, load_companies
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,9 +44,10 @@ def main():
     for symbol, kind, df in load_companies():
         securities.append([symbol, kind, str(df["published_date"].iloc[-1])])
         per_type = counts[kind]
-        for date, change, amount in zip(df["published_date"].astype(str), df["per_change"], df["traded_amount"]):
+        for date, change, amount in zip(df["published_date"].astype(str), effective_change(df), df["traded_amount"]):
+            if change != change:   # NaN: no usable reading (see price_changes.py)
+                continue
             row = per_type.setdefault(date, [0, 0, 0, 0.0, 0.0])
-            # same rule as build_breadth.py: NaN (first row) counts as unchanged
             row[0 if change > 0 else 1 if change < 0 else 2] += 1
             if amount == amount and (change > 0 or change < 0):   # skip NaN turnover
                 row[3 if change > 0 else 4] += amount

@@ -97,18 +97,19 @@ day's follow-through, so close-to-close tests overstate any edge).
 - **The market decider:** day to day, NEPSE goes where most stocks go. Net %
   advancing explains ~77% of daily index moves. Looking ahead, the best single
   guide is *money flow*, the 10-day share of turnover in rising stocks. It beat
-  the index's own momentum at predicting the next week (rank correlation 0.19 /
+  the index's own momentum at predicting the next week (rank correlation 0.18 /
   0.12 vs 0.16 / 0.03).
 - **Crossovers that held up in both periods:** AD line × its 10-day MA
-  (bullish crosses beat bearish ones by ~0.8% over the next week) and the AD
-  line's 10-day × 20-day MA (1.9% / 3.2% over the next 20 days). The 50-day MA
-  crosses stopped working after 2020. 10 and 20 are now the default lines.
+  (bullish crosses beat bearish ones by 0.6% / 0.7% over the next week) and
+  the AD line's 10-day × 20-day MA (1.9% / 3.2% over the next 20 days). Rules on
+  the 50-day MA stopped working after 2020. 10 and 20 are now the default lines.
 - **Bearish signals are the louder warning since 2020:** after the AD line falls
   below its 7-day MA, NEPSE was higher a week later only 34% of the time (vs 48%
   normally).
 - **Breadth is a risk filter, not a return booster:** after costs no rule clearly
-  beat buy-and-hold, but e.g. holding only while the summation index rises
-  kept a similar return with about half the drawdown (−21% vs −42%).
+  beat buy-and-hold by much, but holding only while money flow is above 50%
+  matched it (15.1% / 13.0% a year vs 12.2% / 13.7%) while invested about half
+  the time, with roughly half the worst drawdown (−19% / −26% vs −42% / −43%).
 - **Textbook divergences fail here:** NEPSE highs without AD-line confirmation
   were followed by *above*-average returns. Breadth thrusts and washouts weren't
   reliable turning points either. NEPSE behaves like a momentum market.
@@ -122,6 +123,16 @@ Mutual funds trade near their NPR 10 face value and debentures near NPR
 1,000, so `scripts/securities.py` classifies them automatically (newly listed
 funds are picked up without editing a list); the result is written to
 `data/security-types.csv`.
+
+**Price-change data repair.** Before 2018-02-19 the CSVs' `per_change` is
+often a placeholder 0 although the price moved (up to ~27% of rows in
+2016–17), which made breadth count those days as "unchanged". Every breadth
+calculation therefore goes through `scripts/price_changes.py`: close-to-close
+change for that era (moves beyond the then ±10% limit are bonus/rights
+adjustments and are skipped), ShareSansar's own `per_change` afterwards (it is
+already measured against the adjusted previous close), and listing days
+skipped. Company charts on the site are back-adjusted for bonus/rights issues
+by default (untick *Adjusted* to see raw prices).
 
 The site is rebuilt and deployed by `.github/workflows/update-breadth-chart.yml`
 every time the daily price scraper finishes. The scraper's first run is at
