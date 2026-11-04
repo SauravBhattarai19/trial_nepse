@@ -1,8 +1,11 @@
 name: update-companies-data
 on:
   schedule:
-    # Runs "at 18:45 (Nepal Time), every Monday to Friday
-    - cron: "0 13,14,15,16,17 * * 0,1,2,3,4,5"
+    # NEPSE trades 11:00-15:00 Nepal time (UTC+5:45), Sun-Thu. First run is
+    # right after the close (09:30 UTC = 15:15 NPT); the later runs are retries
+    # and also refresh today's row if the site corrected anything:
+    # 15:15, 16:15, 17:15, 19:15 and 22:15 NPT.
+    - cron: "30 9,10,11,13,16 * * 0,1,2,3,4,5"
   workflow_dispatch:
 defaults:
   run:
