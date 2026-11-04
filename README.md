@@ -64,16 +64,20 @@ The code that updates data on a daily basis resides in the `.github/workflows` d
 
 **Live: https://sauravbhattarai19.github.io/trial_nepse/**
 
-A trading-style chart of the NEPSE index (candlesticks, volume, 5/7-day MAs),
+A trading-style chart of the NEPSE index (candlesticks, volume, moving averages),
 the Advance/Decline line and daily advancers vs decliners, with the three
 panes scrolled, zoomed and crosshaired together (mouse wheel / pinch to zoom,
 drag to pan). You can:
 
 - turn **mutual funds** and **debentures** on or off: the breadth numbers,
   the AD line, the stat tiles and the CSV download are all recomputed
+- pick the moving averages drawn on the price and AD-line panes: tap the
+  3 / 5 / 7 / 10 / 20 / 50-day presets or type any number of days (2–1000)
+  and press *Add*; up to 3 at once, calculated in the browser over trading
+  days, and included in the CSV download
 - switch the price pane from the NEPSE index to any company symbol
 - jump to 1M / 3M / 6M / 1Y / 3Y / 5Y / All, and share a view by URL
-  (e.g. `#mf=0&s=NABIL&r=3M`)
+  (e.g. `#mf=0&s=NABIL&r=3M&ma=3,5,7`)
 
 Mutual funds trade near their NPR 10 face value and debentures near NPR
 1,000, so `scripts/securities.py` classifies them automatically (newly listed
