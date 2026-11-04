@@ -58,13 +58,43 @@ A few things worth knowing:
 - `allDataScrapper.py` skips any symbol that already has a CSV, so re-running it won't clobber or duplicate existing data.
 - `dailyDataScrapper.py` only appends to CSVs that already exist and is idempotent — running it twice in a day won't add a duplicate row.
 
-The code that updates data on a daily basis resides in the `.github/workflows` directory and runs on Github Actions as a CRON job. The workflow runs 5 times every day (Sunday to Friday) so that if the data collection is missed the first time then it will work the second time and so on.
+The code that updates data on a daily basis resides in the `.github/workflows` directory and runs on Github Actions as a CRON job. The workflow runs 5 times every day (Sunday to Friday), starting at 15:15 Nepal time right after the market closes, so that if the data collection is missed the first time then it will work the second time and so on. A later run also refreshes today's row if the prices on the site changed.
+
+## Interactive chart (GitHub Pages)
+
+**Live: https://sauravbhattarai19.github.io/trial_nepse/**
+
+A trading-style chart of the NEPSE index (candlesticks, volume, 5/7-day MAs),
+the Advance/Decline line and daily advancers vs decliners, with the three
+panes scrolled, zoomed and crosshaired together (mouse wheel / pinch to zoom,
+drag to pan). You can:
+
+- turn **mutual funds** and **debentures** on or off: the breadth numbers,
+  the AD line, the stat tiles and the CSV download are all recomputed
+- switch the price pane from the NEPSE index to any company symbol
+- jump to 1M / 3M / 6M / 1Y / 3Y / 5Y / All, and share a view by URL
+  (e.g. `#mf=0&s=NABIL&r=3M`)
+
+Mutual funds trade near their NPR 10 face value and debentures near NPR
+1,000, so `scripts/securities.py` classifies them automatically (newly listed
+funds are picked up without editing a list); the result is written to
+`data/security-types.csv`.
+
+The site is rebuilt and deployed by `.github/workflows/update-breadth-chart.yml`
+every time the daily price scraper finishes. The scraper's first run is at
+15:15 Nepal time, right after NEPSE's 15:00 close, so the chart is current
+shortly after each trading day ends. The page source lives in `site/`;
+`python scripts/build_site.py` builds it into `_site/` (open it with
+`python -m http.server -d _site`).
+
+**One-time setup:** in the repository's *Settings → Pages*, set **Source** to
+**GitHub Actions**. After that, deployments are automatic.
 
 ## Market breadth (advancers/decliners, AD Line, NEPSE index)
 
 This fork adds a market-breadth pipeline on top of the company-wise data above.
-It runs daily via `.github/workflows/update-breadth-chart.yml` (after the main
-data-collection workflow) and produces:
+It runs via `.github/workflows/update-breadth-chart.yml` each time the main
+data-collection workflow finishes, and produces:
 
 - `data/market-breadth.csv` — one row per trading day: `advancers`, `decliners`,
   `unchanged`, `total_traded`, counted from every company-wise CSV.

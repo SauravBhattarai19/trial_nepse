@@ -1,19 +1,38 @@
-name: update-breadth-chart
+name: update-breadth-chart-and-site
 on:
-  schedule:
-    # 17:30 UTC = 23:15 Nepal time - runs after the last company-data
-    # update of the day (schedule-updater.yml's final run at 17:00 UTC)
-    - cron: "30 17 * * 0,1,2,3,4,5"
+  # Runs every time the daily price scraper finishes, so the site refreshes
+  # right after the market close (the scraper's first run is 15:15 NPT).
+  workflow_run:
+    workflows: ["update-companies-data"]
+    types: [completed]
+    branches: [main]
+  # Redeploy when the site or the scripts behind it change.
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "scripts/**"
+      - ".github/workflows/update-breadth-chart.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+# One run at a time; a queued run still goes ahead so the newest data ships.
+concurrency:
+  group: breadth-and-site
+  cancel-in-progress: false
 
 jobs:
-  update-breadth-chart:
+  build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: actions/setup-python@v5
         with:
@@ -23,6 +42,8 @@ jobs:
         run: pip install -r scripts/requirements.txt
 
       - name: Fetch NEPSE index history
+        # If ShareSansar is unreachable, carry on with the index already on file.
+        continue-on-error: true
         run: python scripts/fetch_nepse_index.py
 
       - name: Build advancers/decliners breadth
@@ -30,6 +51,9 @@ jobs:
 
       - name: Build combined dataset (AD line + moving averages)
         run: python scripts/build_combined.py
+
+      - name: Classify securities (stock / mutual fund / debenture)
+        run: python scripts/securities.py
 
       - name: Render charts
         run: python scripts/plot_chart.py
@@ -40,7 +64,7 @@ jobs:
       - name: Commit outputs
         id: commit
         run: |
-          git add data/nepse-index.csv data/market-breadth.csv data/combined.csv charts/
+          git add data/nepse-index.csv data/market-breadth.csv data/combined.csv data/security-types.csv charts/
           if git diff --staged --quiet; then
             echo "No changes to commit."
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -51,4 +75,26 @@ jobs:
 
       - name: Push changes
         if: steps.commit.outputs.changed == 'true'
-        run: git push
+        run: |
+          # the data scraper may have pushed since checkout
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Build interactive site
+        run: python scripts/build_site.py
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

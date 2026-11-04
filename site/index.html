@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEPSE Market Breadth</title>
+  <meta name="description" content="Interactive NEPSE index and market breadth (advancers, decliners, Advance/Decline line) chart, updated after every trading day.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='6' width='3' height='7' fill='%231baf7a'/%3E%3Crect x='7' y='3' width='3' height='9' fill='%23e34948'/%3E%3Crect x='12' y='5' width='2' height='6' fill='%231baf7a'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>NEPSE Market Breadth</h1>
+      <p class="sub">NEPSE index, Advance/Decline line and daily advancers vs decliners. <span id="updated">Loading…</span></p>
+    </div>
+  </header>
+
+  <section class="tiles" id="tiles" aria-live="polite"></section>
+
+  <section class="controls" aria-label="Chart controls">
+    <label class="field">
+      <span class="field-label">Price chart</span>
+      <input id="symbol" list="symbols" value="NEPSE" autocomplete="off" spellcheck="false" aria-label="Security to chart (NEPSE index or a company symbol)">
+      <datalist id="symbols"></datalist>
+    </label>
+
+    <div class="field">
+      <span class="field-label">Count in breadth</span>
+      <div class="chips" role="group" aria-label="Security types counted in breadth">
+        <span class="chip chip-fixed" title="Ordinary shares are always counted">Stocks <span id="n-equity"></span></span>
+        <button type="button" class="chip" id="t-mf" aria-pressed="true">Mutual funds <span id="n-mutual_fund"></span></button>
+        <button type="button" class="chip" id="t-deb" aria-pressed="true">Debentures <span id="n-debenture"></span></button>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Range</span>
+      <div class="seg" role="group" aria-label="Visible date range" id="ranges">
+        <button type="button" data-range="1M">1M</button>
+        <button type="button" data-range="3M">3M</button>
+        <button type="button" data-range="6M">6M</button>
+        <button type="button" data-range="1Y">1Y</button>
+        <button type="button" data-range="3Y">3Y</button>
+        <button type="button" data-range="5Y">5Y</button>
+        <button type="button" data-range="ALL">All</button>
+      </div>
+    </div>
+
+    <button type="button" class="btn" id="download">Download CSV</button>
+  </section>
+
+  <main class="panes" id="panes">
+    <div class="pane pane-price"><div class="legend" id="lg-price"></div><div class="chart" id="c-price"></div></div>
+    <div class="pane pane-ad"><div class="legend" id="lg-ad"></div><div class="chart" id="c-ad"></div></div>
+    <div class="pane pane-hist"><div class="legend" id="lg-hist"></div><div class="chart" id="c-hist"></div></div>
+    <div class="status" id="status" hidden></div>
+  </main>
+  <p class="hint">Scroll or pinch to zoom · drag to pan · double-click the price axis to reset its scale.</p>
+
+  <section class="recent">
+    <h2>Last 10 trading days</h2>
+    <div class="table-wrap">
+      <table id="recent-table">
+        <thead><tr><th>Date</th><th>NEPSE close</th><th>Change</th><th>Advancers</th><th>Decliners</th><th>Unchanged</th><th>AD line Δ</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="notes">
+    <p><strong>How breadth is counted.</strong> Each trading day, every security in <code>data/company-wise</code> that traded is an <em>advancer</em> (per_change &gt; 0), a <em>decliner</em> (&lt; 0) or <em>unchanged</em>. The Advance/Decline line is the running total of advancers − decliners. Turning off mutual funds or debentures removes them from all three breadth numbers; the NEPSE index itself is published by NEPSE and does not change.</p>
+    <p>Mutual funds trade near their NPR 10 face value and debentures near NPR 1,000, so they are classified automatically (see <code>scripts/securities.py</code>). Data: ShareSansar, refreshed by GitHub Actions after the market closes (Sun–Thu, 15:00 NPT). Charts: <a href="https://www.tradingview.com/lightweight-charts/">TradingView Lightweight Charts</a>.</p>
+  </footer>
+
+  <script src="vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

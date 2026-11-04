@@ -41,7 +41,7 @@ Two scrapers hit two different sharesansar.com surfaces (`constants/url.py`):
 
     **`discoverCompanies.py`** regenerates `constants/companyIdMap.py` (a generated file — don't hand-edit). It reads the live universe of symbols from `today-share-price`, then for each visits `/company/<symbol>` and scrapes the numeric id from the hidden `<div id="companyid">`. It merges with the existing map (never drops existing/delisted entries) and writes the file sorted by symbol.
 
-2. **`dailyDataScrapper.py`** — daily incremental. Scrapes the `today-share-price` HTML page (BeautifulSoup + `pandas.read_html`), reads today's date from a `<span class="text-org">`, then for each existing CSV: skips if its last row already matches today's date (idempotent), otherwise matches the company by the `Symbol` column in the page's first table and **appends** one row. Only updates files that already exist — it does not create new company files.
+2. **`dailyDataScrapper.py`** — daily incremental. Scrapes the `today-share-price` HTML page (BeautifulSoup + `pandas.read_html`), reads today's date from a `<span class="text-org">`, then for each existing CSV matches the company by the `Symbol` column in the page's first table: if the last row is already today's date it is **replaced** (so later runs pick up corrections; identical values rewrite identical bytes, so it stays idempotent), a page date older than the last row is ignored, otherwise one row is **appended**. Only updates files that already exist — it does not create new company files.
 
 Adding new companies is now largely automatic: run `discoverCompanies.py` to refresh `companyIdMap`, then `allDataScrapper.py` to seed any company that lacks a CSV. After that the daily job maintains it automatically.
 
@@ -51,7 +51,13 @@ Adding new companies is now largely automatic: run `discoverCompanies.py` to ref
 
 ## Automation
 
-`.github/workflows/schedule-updater.yml` runs `dailyDataScrapper.py` five times per day (Sun–Fri, Nepal time), commits any changed CSVs as "Update data", and pushes to `main`. The repeated runs are intentional retries in case an earlier run misses the daily data. The repo's commit history is overwhelmingly these automated "Update data" commits.
+`.github/workflows/schedule-updater.yml` runs `dailyDataScrapper.py` five times per day (Sun–Fri), the first at 15:15 NPT right after NEPSE's 15:00 close, commits any changed CSVs as "Update data", and pushes to `main`. The repeated runs are intentional retries in case an earlier run misses the daily data. The repo's commit history is overwhelmingly these automated "Update data" commits.
+
+`.github/workflows/update-breadth-chart.yml` runs on `workflow_run` after each scraper run (and on pushes touching `site/`/`scripts/`). It runs the `scripts/` breadth pipeline (`fetch_nepse_index.py` → `build_breadth.py` → `build_combined.py` → `securities.py` → `plot_chart.py`), commits the outputs, then `build_site.py` builds `_site/` and deploys it to GitHub Pages (repo Settings → Pages → Source must be "GitHub Actions").
+
+## Interactive site
+
+`site/` is a static page (no build tooling) using a vendored TradingView Lightweight Charts v4.2.3 (`site/vendor/`). `scripts/build_site.py` copies it to `_site/` (gitignored) and writes `_site/data/market.json` — a shared date axis, NEPSE index OHLC, and per-security-type (`equity`/`mutual_fund`/`debenture`) daily advancer/decliner/unchanged counts — plus copies the company CSVs for the per-company price view. `site/app.js` sums the selected types and recomputes the AD line client-side, so the mutual-fund/debenture toggles need no extra data. The three chart panes stay in sync because every series has a point (or whitespace) on every shared date, so logical indexes line up. `scripts/securities.py` classifies securities: debentures by symbol pattern, mutual funds by a known list plus "median close < NPR 25". Preview locally with `python scripts/build_site.py && python -m http.server -d _site`.
 
 ## Gotchas
 
