@@ -67,3 +67,5 @@ Adding new companies is now largely automatic: run `discoverCompanies.py` to ref
 - Scrapers depend on sharesansar.com's page structure and endpoint contract; site changes (table order, column names like `Diff %`/`Vol`/`Turnover`, the date `<span>` class, the `#companyid` div, the `_token` input, GET-vs-POST) are the usual failure mode.
 - The history POST endpoint silently returns an empty result (`recordsTotal: 0`) for a page `length >= 100` — keep `allDataScrapper.PAGE_SIZE <= 50`. An empty response is otherwise indistinguishable from a genuinely untraded company.
 - `per_change` is stored as `nan` for the first record of a series; downstream consumers should handle it.
+- Both workflows push to `main`, so each declares `permissions: contents: write` — this repo's default `GITHUB_TOKEN` is read-only. Don't drop that block.
+- GitHub's `schedule` trigger is best-effort: runs can be late or skipped (especially in the first days of a new repo). If a day is missed, run `update-companies-data` by hand (Actions → Run workflow); `update-breadth-chart-and-site` follows automatically.
