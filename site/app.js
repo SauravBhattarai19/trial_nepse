@@ -221,27 +221,34 @@
   const mcLive = () => mcoFor(breadth, ...mcPair());
 
   // ---------- forward returns (tradeable: act at the next day's open) ----------
-  let idxDays = [], posAfter = null;
-  function buildForward() {
-    const ix = data.index;
-    idxDays = [];
-    for (let i = 0; i < dates.length; i++) if (ix.o[i] > 0 && ix.c[i] > 0) idxDays.push(i);
-    posAfter = new Int32Array(dates.length);
+  // Trading days of a price source ({o, c} arrays on the shared date axis: the NEPSE
+  // index or a company), and for each date the position of the next trading day.
+  function tradeDays(src) {
+    if (src._td) return src._td;
+    const days = [];
+    for (let i = 0; i < dates.length; i++) if (src.o[i] > 0 && src.c[i] > 0) days.push(i);
+    const after = new Int32Array(dates.length);
     let k = 0;
     for (let i = 0; i < dates.length; i++) {
-      while (k < idxDays.length && idxDays[k] <= i) k++;
-      posAfter[i] = k;
+      while (k < days.length && days[k] <= i) k++;
+      after[i] = k;
     }
+    Object.defineProperty(src, "_td", { value: { days, after }, enumerable: false });
+    return src._td;
   }
-  // NEPSE % change from the open of the trading day after `i` to the close h trading days after `i`
-  function fwd(i, h) {
-    const k = posAfter[i];
-    if (k + h - 1 >= idxDays.length) return null;
-    return (data.index.c[idxDays[k + h - 1]] / data.index.o[idxDays[k]] - 1) * 100;
+  let idxDays = [];
+  function buildForward() { idxDays = tradeDays(data.index).days; }
+  // % change of `src` (default NEPSE) from the open of its next trading day after `i`
+  // to the close h of its trading days after `i`
+  function fwd(i, h, src = data.index) {
+    const { days, after } = tradeDays(src);
+    const k = after[i];
+    if (k + h - 1 >= days.length) return null;
+    return (src.c[days[k + h - 1]] / src.o[days[k]] - 1) * 100;
   }
-  function summarize(list, h) {
+  function summarize(list, h, src = data.index) {
     const v = [];
-    for (const i of list) { const r = fwd(i, h); if (r != null) v.push(r); }
+    for (const i of list) { const r = fwd(i, h, src); if (r != null) v.push(r); }
     if (!v.length) return { n: 0, avg: null, up: null };
     return { n: v.length, avg: v.reduce((x, y) => x + y, 0) / v.length, up: (v.filter((x) => x > 0).length / v.length) * 100 };
   }
@@ -480,6 +487,7 @@
     setBreadthData();
     renderMas();
     renderSignals();
+    btApplyTheme();
     renderTiles();
     renderLegends(null);
   }
@@ -694,6 +702,13 @@
       for (let j = i + 1; j < ns.length; j++) out.push({ id: `ma:${ns[i]}:${ns[j]}`, label: `MA${ns[i]} × MA${ns[j]}`, a: ns[i], b: ns[j] });
     const [f, sl] = mcPair();
     out.push({ id: "mco", label: `McClellan ${f}/${sl} × 0`, kind: "mco", a: f, b: sl });
+    for (const o of out) o.group = "AD line (breadth) — NEPSE afterwards";
+    // the same crossovers on the price chart (NEPSE or the chosen company)
+    const lab = price ? price.label : "Price";
+    const pg = `Price chart: ${lab} — ${lab} afterwards`;
+    for (const n of ns) out.push({ id: "p:" + n, label: `${lab} × MA${n}`, kind: "price", a: null, b: n, group: pg });
+    for (let i = 0; i < ns.length; i++)
+      for (let j = i + 1; j < ns.length; j++) out.push({ id: `pm:${ns[i]}:${ns[j]}`, label: `${lab} MA${ns[i]} × MA${ns[j]}`, kind: "price", a: ns[i], b: ns[j], group: pg });
     return out;
   }
   function defaultSig() {
@@ -707,8 +722,17 @@
   }
   function crossEvents(sg) {
     const b = breadth;
-    const fast = sg.kind === "mco" ? mcoFor(b, sg.a, sg.b) : sg.a == null ? b.ad : maOf(b, b.ad, sg.a);
-    const slow = sg.kind === "mco" ? fast.map((x) => (x == null ? null : 0)) : maOf(b, b.ad, sg.b);
+    let fast, slow;
+    if (sg.kind === "price") {
+      fast = sg.a == null ? price.c : maOf(price, price.c, sg.a);
+      slow = maOf(price, price.c, sg.b);
+    } else if (sg.kind === "mco") {
+      fast = mcoFor(b, sg.a, sg.b);
+      slow = fast.map((x) => (x == null ? null : 0));
+    } else {
+      fast = sg.a == null ? b.ad : maOf(b, b.ad, sg.a);
+      slow = maOf(b, b.ad, sg.b);
+    }
     const up = [], dn = [];
     let prev = null;
     for (let i = 0; i < dates.length; i++) {
@@ -765,26 +789,35 @@
     // crossover select + stats + markers
     const opts = sigOptions();
     const sg = activeSig();
+    const groups = [];
+    for (const o of opts) { let g = groups.find((x) => x.name === o.group); if (!g) groups.push(g = { name: o.group, items: [] }); g.items.push(o); }
     $("sig-select").innerHTML = `<option value="off">Off (no markers)</option>` +
-      opts.map((o) => `<option value="${o.id}"${sg && sg.id === o.id ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+      groups.map((g) => `<optgroup label="${esc(g.name)}">` +
+        g.items.map((o) => `<option value="${o.id}"${sg && sg.id === o.id ? " selected" : ""}>${esc(o.label)}</option>`).join("") + `</optgroup>`).join("");
     if (!sg) $("sig-select").value = "off";
+    series.ad.setMarkers([]);
+    series.candles.setMarkers([]);
     if (!sg) {
-      series.ad.setMarkers([]);
-      $("cross-body").innerHTML = `<p class="note">Pick a crossover to mark it on the AD line and see what NEPSE did afterwards. The choices follow the moving averages you have switched on.</p>`;
+      $("cross-body").innerHTML = `<p class="note">Pick a crossover to mark it on the chart and see what happened next. The choices follow the moving averages you have switched on.</p>`;
       return;
     }
+    const onPrice = sg.kind === "price";
+    const src = onPrice ? price : data.index;
+    const target = onPrice ? price.label : "NEPSE";
     const ev = crossEvents(sg);
     const mk = ev.up.map((i) => ({ i, up: true })).concat(ev.dn.map((i) => ({ i, up: false }))).sort((x, y) => x.i - y.i);
-    series.ad.setMarkers(mk.map((m) => ({
+    (onPrice ? series.candles : series.ad).setMarkers(mk.map((m) => ({
       time: dates[m.i], position: m.up ? "belowBar" : "aboveBar", shape: m.up ? "arrowUp" : "arrowDown", color: m.up ? t.up : t.down, size: 1,
     })));
     const lastEv = mk[mk.length - 1];
     const upL = ev.up.filter(inPeriod), dnL = ev.dn.filter(inPeriod);
     const base = [];
-    for (let i = 0; i < dates.length; i++) if (inPeriod(i) && data.index.c[i] != null) base.push(i);
-    const st = [["Bullish crosses ▲", upL], ["Bearish crosses ▼", dnL], ["Any day (baseline)", base]].map(([name, l]) => [name, summarize(l, 5), summarize(l, 20)]);
+    for (let i = 0; i < dates.length; i++) if (inPeriod(i) && src.c[i] != null) base.push(i);
+    const st = [["Bullish crosses ▲", upL], ["Bearish crosses ▼", dnL], ["Any day (baseline)", base]].map(([name, l]) => [name, summarize(l, 5, src), summarize(l, 20, src)]);
     const spread5 = st[0][1].avg - st[1][1].avg, spread20 = st[0][2].avg - st[1][2].avg;
-    const what = sg.kind === "mco" ? `the McClellan oscillator (${sg.a}/${sg.b}) turned ${"%DIR%"}`
+    const what = onPrice
+      ? (sg.a == null ? `${esc(target)} closed ${"%DIR%"} its ${sg.b}-day MA` : `${esc(target)}'s ${sg.a}-day MA moved ${"%DIR%"} its ${sg.b}-day MA`)
+      : sg.kind === "mco" ? `the McClellan oscillator (${sg.a}/${sg.b}) turned ${"%DIR%"}`
       : sg.a == null ? `the AD line moved ${"%DIR%"} its ${sg.b}-day MA` : `the AD line's ${sg.a}-day MA moved ${"%DIR%"} its ${sg.b}-day MA`;
     $("cross-body").innerHTML =
       (lastEv ? `<p class="latest"><span class="${lastEv.up ? "pos" : "neg"}">${lastEv.up ? "▲ Bullish" : "▼ Bearish"}</span> since ${dates[lastEv.i]}: ` +
@@ -793,9 +826,141 @@
       st.map(([name, s5, s20]) => `<tr><td>${name}</td><td>${fmtInt(s5.n)}</td><td class="${cls(s5.avg)}">${s5.avg == null ? "–" : signed(s5.avg) + "%"}</td>` +
         `<td>${s5.up == null ? "–" : Math.round(s5.up) + "%"}</td><td class="${cls(s20.avg)}">${s20.avg == null ? "–" : signed(s20.avg) + "%"}</td>` +
         `<td>${s20.up == null ? "–" : Math.round(s20.up) + "%"}</td></tr>`).join("") + `</tbody></table>` +
-      (isFinite(spread5) ? `<p class="note">${per[0].toUpperCase() + per.slice(1)}, NEPSE did <b class="${cls(spread5)}">${signed(spread5)}%</b> better over 5 days and ` +
+      `<p class="note">Returns of <b>${esc(target)}</b>${onPrice && price.adjusted ? " (bonus-adjusted)" : ""}, from its next open.</p>` +
+      (isFinite(spread5) ? `<p class="note">${per[0].toUpperCase() + per.slice(1)}, ${esc(target)} did <b class="${cls(spread5)}">${signed(spread5)}%</b> better over 5 days and ` +
         `<b class="${cls(spread20)}">${signed(spread20)}%</b> over 20 days after a bullish cross than after a bearish one.` +
         (upL.length < 15 ? ` Only ${upL.length} bullish crosses — treat as anecdotal.` : "") + `</p>` : "");
+  }
+
+  // ---------- rule backtester ----------
+  // Same mechanics as backtest() in scripts/signal_study.py: the rule is read at day k's
+  // close, the position changes at day k+1's open (so day k+1's opening gap still belongs
+  // to the old position), and every buy or sell pays `cost`. Long NEPSE or cash.
+  let btCharts = null, btPeriod = "all";
+
+  function btConditions() {
+    const f = $("bt-form").elements, b = breadth, ix = data.index;
+    const int = (el, lo, hi, dflt) => { const v = Math.round(Number(el.value)); return v >= lo && v <= hi ? v : dflt; };
+    const conds = [];
+    if (f.flow.checked) {
+      const m = int(f.flowMin, 1, 99, 50) / 100;
+      conds.push({ text: `money flow above ${Math.round(m * 100)}%`, ok: (i) => b.flow10[i] != null && b.flow10[i] > m });
+    }
+    if (f.score.checked) {
+      const m = int(f.scoreMin, 0, 5, 3);
+      conds.push({ text: `score at least ${m}`, ok: (i) => b.score[i] != null && b.score[i] >= m });
+    }
+    if (f.adma.checked) {
+      const n = int(f.adN, 2, 500, 10), ma = maOf(b, b.ad, n);
+      conds.push({ text: `AD line above its ${n}-day MA`, ok: (i) => ma[i] != null && b.ad[i] > ma[i] });
+    }
+    if (f.adx.checked) {
+      const a = int(f.adA, 2, 500, 10), c = int(f.adB, 2, 500, 20), ma = maOf(b, b.ad, a), mb = maOf(b, b.ad, c);
+      conds.push({ text: `AD ${a}-day MA above its ${c}-day MA`, ok: (i) => ma[i] != null && mb[i] != null && ma[i] > mb[i] });
+    }
+    if (f.mco.checked) conds.push({ text: "McClellan (19/39) above 0", ok: (i) => b.mco[i] != null && b.mco[i] > 0 });
+    if (f.msi.checked) conds.push({ text: "summation index rising", ok: (i) => i >= 5 && b.msi[i] - b.msi[i - 5] > 0 });
+    if (f.px.checked) {
+      const n = int(f.pxN, 2, 500, 20), ma = maOf(ix, ix.c, n);
+      conds.push({ text: `NEPSE above its ${n}-day MA`, ok: (i) => ma[i] != null && ix.c[i] > ma[i] });
+    }
+    const cost = Math.min(Math.max(Number(f.cost.value) || 0, 0), 5) / 100;
+    return { conds, cost };
+  }
+
+  function runBacktest() {
+    if (!breadth || !$("bt-form")) return;
+    const { conds, cost } = btConditions();
+    const ix = data.index, days = idxDays, K = days.length;
+    const pos = days.map((i) => (conds.length && conds.every((c) => c.ok(i)) ? 1 : 0));
+    const per = PERIODS[btPeriod];
+    const rows = [];   // {i, r, bh}
+    for (let k = 2; k < K; k++) {
+      const i = days[k];
+      if (dates[i] < per.from || dates[i] >= per.to) continue;
+      const gap = ix.o[i] / ix.c[days[k - 1]] - 1, intra = ix.c[i] / ix.o[i] - 1;
+      const session = pos[k - 1], overnight = pos[k - 2];
+      const r = (1 + overnight * gap) * (1 + session * intra) - 1 - Math.abs(session - overnight) * cost;
+      rows.push({ i, r, bh: ix.c[i] / ix.c[days[k - 1]] - 1, inMkt: session, trade: Math.abs(session - overnight) });
+    }
+    const stats = (key) => {
+      let eq = 1, peak = 1, dd = 0, sum = 0, sum2 = 0;
+      const curve = [], under = [];
+      for (const row of rows) {
+        const r = row[key];
+        eq *= 1 + r; peak = Math.max(peak, eq); dd = Math.min(dd, eq / peak - 1);
+        sum += r; sum2 += r * r;
+        curve.push({ time: dates[row.i], value: eq * 100 });
+        under.push({ time: dates[row.i], value: (eq / peak - 1) * 100 });
+      }
+      const n = rows.length, yrs = n / 240, mean = sum / n, sd = Math.sqrt(Math.max(sum2 / n - mean * mean, 0));
+      return { total: (eq - 1) * 100, cagr: (Math.pow(eq, 1 / yrs) - 1) * 100, dd: dd * 100, sharpe: sd ? (mean / sd) * Math.sqrt(240) : 0, curve, under };
+    };
+    const R = stats("r"), B = stats("bh");
+    const yrs = rows.length / 240;
+    const invested = (rows.reduce((x, r) => x + r.inMkt, 0) / rows.length) * 100;
+    const trips = rows.reduce((x, r) => x + r.trade, 0) / 2 / yrs;
+    const lastK = K - 1, nowIn = pos[lastK] === 1;
+    const failing = conds.filter((c) => !c.ok(days[lastK])).map((c) => c.text);
+    const t = theme();
+    const row = (label, a, b2, fmtf, better) =>
+      `<tr><td>${label}</td><td class="${better ? cls(better(a, b2)) : ""}">${fmtf(a)}</td><td>${fmtf(b2)}</td></tr>`;
+    const pct = (v) => signed(v, (x) => x.toFixed(1)) + "%";
+    $("bt-res").innerHTML =
+      (conds.length
+        ? `<p class="bt-now ${nowIn ? "in" : "out"}"><b>${nowIn ? "In the market" : "In cash"}</b> as of ${dates[days[lastK]]}` +
+          (nowIn ? ": every condition holds." : `: ${failing.map(esc).join(", ")} ${failing.length > 1 ? "are" : "is"} not met.`) + `</p>`
+        : `<p class="bt-now out">Tick at least one condition.</p>`) +
+      `<table class="xt bt-table"><thead><tr><th>${PERIODS[btPeriod].label}</th><th>Your rule</th><th>Buy &amp; hold</th></tr></thead><tbody>` +
+      row("Return a year", R.cagr, B.cagr, pct, (a, c) => a - c) +
+      row("Total return", R.total, B.total, (v) => signed(v, fmtInt) + "%", (a, c) => a - c) +
+      row("Worst drawdown", R.dd, B.dd, pct, (a, c) => a - c) +
+      row("Return per unit of risk", R.sharpe, B.sharpe, (v) => v.toFixed(2), (a, c) => a - c) +
+      `<tr><td>Time in the market</td><td>${Math.round(invested)}%</td><td>100%</td></tr>` +
+      `<tr><td>Round trips a year</td><td>${trips.toFixed(1)}</td><td>0</td></tr>` +
+      `</tbody></table>` +
+      `<p class="note">${rows.length.toLocaleString()} trading days · cost ${(cost * 100).toFixed(2)}% per buy or sell · green/red = better/worse than buy &amp; hold.</p>`;
+
+    if (!btCharts) {
+      const mk = (id, log) => {
+        const el = $(id);
+        const c = LC.createChart(el, Object.assign(chartOptions(t, id === "c-dd", false, id === "c-dd"),
+          { rightPriceScale: { borderColor: t.border, minimumWidth: 84, mode: log ? LC.PriceScaleMode.Logarithmic : LC.PriceScaleMode.Normal } }));
+        c.resize(el.clientWidth, el.clientHeight);
+        return c;
+      };
+      btCharts = { eq: mk("c-bt", true), dd: mk("c-dd", false) };
+      const so = (color, w) => ({ color, lineWidth: w, priceLineVisible: false, lastValueVisible: true, priceFormat: { type: "price", precision: 0, minMove: 1 } });
+      btCharts.s = {
+        eqB: btCharts.eq.addLineSeries(so(t.muted, 1.5)), eqR: btCharts.eq.addLineSeries(so(t.ma[0], 2)),
+        ddB: btCharts.dd.addLineSeries(so(t.muted, 1.5)), ddR: btCharts.dd.addLineSeries(so(t.ma[0], 2)),
+      };
+      let sync = false;
+      const both = [btCharts.eq, btCharts.dd];
+      for (const c of both) c.timeScale().subscribeVisibleLogicalRangeChange((r) => {
+        if (sync || !r) return; sync = true; for (const o of both) if (o !== c) o.timeScale().setVisibleLogicalRange(r); sync = false;
+      });
+      new ResizeObserver(() => { for (const [id, c] of [["c-bt", btCharts.eq], ["c-dd", btCharts.dd]]) { const el = $(id); c.resize(el.clientWidth, el.clientHeight); } }).observe($("bt-chart"));
+    }
+    btCharts.s.eqR.setData(R.curve); btCharts.s.eqB.setData(B.curve);
+    btCharts.s.ddR.setData(R.under); btCharts.s.ddB.setData(B.under);
+    btCharts.eq.timeScale().fitContent(); btCharts.dd.timeScale().fitContent();
+    $("bt-legend").innerHTML =
+      `<span class="item"><span class="sw sw-line" style="background:${t.ma[0]}"></span>Your rule</span>` +
+      `<span class="item"><span class="sw sw-line" style="background:${t.muted}"></span>Buy &amp; hold NEPSE</span>` +
+      `<span class="item opt">top: growth of 100 (log scale) · bottom: % below the previous peak</span>`;
+    for (const btn of document.querySelectorAll("#bt-period button")) btn.setAttribute("aria-pressed", String(btn.dataset.period === btPeriod));
+  }
+
+  function btApplyTheme() {
+    if (!btCharts) return;
+    const t = theme();
+    btCharts.eq.applyOptions(chartOptions(t, false, false, false));
+    btCharts.dd.applyOptions(chartOptions(t, true, false, true));
+    btCharts.eq.priceScale("right").applyOptions({ mode: LC.PriceScaleMode.Logarithmic });
+    btCharts.s.eqR.applyOptions({ color: t.ma[0] }); btCharts.s.ddR.applyOptions({ color: t.ma[0] });
+    btCharts.s.eqB.applyOptions({ color: t.muted }); btCharts.s.ddB.applyOptions({ color: t.muted });
+    runBacktest();
   }
 
   function applyRange() {
@@ -847,7 +1012,9 @@
 
     if (state.sec) $("lg-ad").innerHTML += `<span class="item"><span class="tag">${state.sec.length === 1 ? esc(state.sec[0]) + " only" : state.sec.length + " sectors"}</span></span>`;
     const sg = activeSig();
-    if (sg) $("lg-ad").innerHTML += `<span class="item opt"><span class="pos">▲</span><span class="neg">▼</span> ${esc(sg.label)} crosses</span>`;
+    const xItem = sg ? `<span class="item opt"><span class="pos">▲</span><span class="neg">▼</span> ${esc(sg.label)} crosses</span>` : "";
+    if (sg && sg.kind !== "price") $("lg-ad").innerHTML += xItem;
+    if (sg && sg.kind === "price") $("lg-price").innerHTML += xItem;
 
     if (state.pane === "mcclellan") {
       const [f, sl] = mcPair(), v = mcLive()[bi];
@@ -931,6 +1098,7 @@
     renderTiles();
     renderTable();
     renderSignals();
+    runBacktest();
     renderLegends(null);
     for (const id of ["t-mf", "t-deb"]) {
       $(id).disabled = state.sec != null;
@@ -956,6 +1124,7 @@
     $("symbol").value = sym;
     setPriceData();
     renderMas();
+    renderSignals();
     if (r) charts.price.timeScale().setVisibleLogicalRange(r);
     renderLegends(null);
     writeHash();
@@ -1012,6 +1181,14 @@
       setSectors(sectorStats.map((r) => r.name).filter((x) => cur.has(x)));
     });
     $("sec-all").addEventListener("click", () => setSectors(null));
+    let btTimer = null;
+    const btLater = () => { clearTimeout(btTimer); btTimer = setTimeout(runBacktest, 150); };
+    $("bt-form").addEventListener("input", btLater);
+    $("bt-form").addEventListener("change", btLater);
+    $("bt-form").addEventListener("submit", (e) => e.preventDefault());
+    for (const btn of document.querySelectorAll("#bt-period button")) {
+      btn.addEventListener("click", () => { btPeriod = btn.dataset.period; runBacktest(); });
+    }
     for (const btn of document.querySelectorAll("#panes-mode button")) {
       btn.addEventListener("click", () => { setPane(btn.dataset.pane); renderLegends(null); writeHash(); });
     }

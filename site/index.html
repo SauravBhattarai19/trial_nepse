@@ -119,6 +119,42 @@
     <p class="fine">Returns are the NEPSE index's % change from the <em>next</em> day's open to the close 5 or 20 trading days later, which is what you could have caught by acting the morning after a signal, before costs. Breadth follows the stocks / mutual funds / debentures choice above. Past behaviour, not a forecast or investment advice.</p>
   </section>
 
+  <section class="backtest" id="backtest" aria-labelledby="bt-h">
+    <div class="sec-head">
+      <h2 id="bt-h">Backtest a rule</h2>
+      <div class="field">
+        <span class="field-label">Period</span>
+        <div class="seg" id="bt-period" role="group" aria-label="Backtest period">
+          <button type="button" data-period="all">Since 2013</button>
+          <button type="button" data-period="is">2013–2019</button>
+          <button type="button" data-period="oos">Since 2020</button>
+        </div>
+      </div>
+    </div>
+    <div class="bt-grid">
+      <form class="card bt-form" id="bt-form" autocomplete="off">
+        <h3>Hold NEPSE only while every ticked condition is true</h3>
+        <label class="cond"><input type="checkbox" name="flow" checked> 10-day money flow above <input type="number" name="flowMin" value="50" min="1" max="99" aria-label="Money flow threshold, percent">%</label>
+        <label class="cond"><input type="checkbox" name="score"> Breadth score at least
+          <select name="scoreMin" aria-label="Minimum breadth score"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+        <label class="cond"><input type="checkbox" name="adma"> AD line above its <input type="number" name="adN" value="10" min="2" max="500" aria-label="AD line moving average days">-day MA</label>
+        <label class="cond"><input type="checkbox" name="adx"> AD line's <input type="number" name="adA" value="10" min="2" max="500" aria-label="Fast moving average days">-day MA above its <input type="number" name="adB" value="20" min="2" max="500" aria-label="Slow moving average days">-day MA</label>
+        <label class="cond"><input type="checkbox" name="mco"> McClellan oscillator (19/39) above 0</label>
+        <label class="cond"><input type="checkbox" name="msi"> Summation index rising over 5 days</label>
+        <label class="cond"><input type="checkbox" name="px"> NEPSE above its <input type="number" name="pxN" value="20" min="2" max="500" aria-label="NEPSE moving average days">-day MA</label>
+        <label class="cond cost">Cost per buy or sell <input type="number" name="cost" value="0.4" step="0.05" min="0" max="5" aria-label="Trading cost per side, percent">%</label>
+        <p class="note">Read at the close, acted on at the next day's open. Breadth follows the stocks / sectors you chose above.</p>
+      </form>
+      <div class="card bt-res" id="bt-res"></div>
+    </div>
+    <div class="card bt-chart" id="bt-chart">
+      <div class="bt-legend legend-static" id="bt-legend"></div>
+      <div class="chart" id="c-bt"></div>
+      <div class="chart" id="c-dd"></div>
+    </div>
+    <p class="fine">Long NEPSE or cash, no interest on cash, no taxes. The index itself can't be bought, so treat this as a guide to how a breadth-timed portfolio of index-like stocks would have behaved, not a promise. A rule you tune until it looks good on this history will look worse on the future: compare the 2013–2019 and since-2020 results before trusting one.</p>
+  </section>
+
   <section class="insights" aria-labelledby="ins-h">
     <h2 id="ins-h">What the data says</h2>
     <p class="sub">A study of every trading day from Jan 2013 to Nov 2026, ordinary shares only (with the pre-2018 price-change data repaired; see <code>scripts/price_changes.py</code>), with each result checked separately on 2013–2019 and on 2020–2026 so a pattern has to hold in both to count. Returns are from the next day's open. Reproduce it with <code>python scripts/signal_study.py</code>.</p>
