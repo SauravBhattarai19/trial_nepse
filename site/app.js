@@ -8,6 +8,11 @@
  * Three stacked Lightweight Charts share that date axis: every series gets a
  * point (or whitespace) on every date, so logical indexes line up and the
  * panes can be scrolled, zoomed and crosshaired together.
+ *
+ * The "Breadth signals" section is computed here too, from the same data:
+ * a 0-5 breadth score, AD-line crossover markers and what NEPSE did after
+ * them. Returns are measured from the NEXT day's open (see fwd()), matching
+ * scripts/signal_study.py, which holds the research behind these choices.
  */
 (function () {
   "use strict";
@@ -18,19 +23,29 @@
   const RANGE_MONTHS = { "1M": 1, "3M": 3, "6M": 6, "1Y": 12, "3Y": 36, "5Y": 60 };
 
   const MA_PRESETS = [3, 5, 7, 10, 20, 50];
-  const MA_DEFAULT = [5, 7];
+  const MA_DEFAULT = [10, 20];   // the pair that held up best in scripts/signal_study.py
   const MA_MAX = 3;          // at most 3 lines: no 4-colour set stays distinguishable in every combination
   const MA_MIN_DAYS = 2, MA_MAX_DAYS = 1000;
 
-  const state = { mf: true, deb: true, symbol: "NEPSE", range: "1Y", mas: MA_DEFAULT.slice() };
+  const PANES = ["breadth", "mcclellan", "flow"];
+  const PERIODS = {
+    all: { from: "2013-01-01", to: "9999", label: "since 2013" },
+    is: { from: "2013-01-01", to: "2020-01-01", label: "2013–2019" },
+    oos: { from: "2020-01-01", to: "9999", label: "since 2020" },
+  };
+
+  const state = {
+    mf: true, deb: true, symbol: "NEPSE", range: "1Y", mas: MA_DEFAULT.slice(),
+    pane: "breadth", sig: null /* null = default for the active MAs */, period: "all",
+  };
   const maSlot = new Map();  // period -> colour slot 0..2; a line keeps its colour while it is on
   let data = null;          // market.json
   let dates = [];           // shared axis, "YYYY-MM-DD"
-  let breadth = null;       // {a, d, u, net, ad, maCache}
+  let breadth = null;       // {a, d, u, net, ad, mco, flow10, pctAdv10, score, ...}
   let price = null;         // {o, h, l, c, t, prev, label, kind, maCache}
   let typeOf = {};          // symbol -> type
   const companyCache = new Map();
-  let charts, series;
+  let charts, series, flowMid;
 
   // ---------- state <-> URL hash ----------
   function readHash() {
@@ -39,6 +54,9 @@
     if (p.get("deb") === "0") state.deb = false;
     if (p.get("s")) state.symbol = p.get("s").toUpperCase();
     if (p.get("r") && (RANGE_MONTHS[p.get("r")] || p.get("r") === "ALL")) state.range = p.get("r");
+    if (PANES.includes(p.get("p"))) state.pane = p.get("p");
+    if (p.get("sig")) state.sig = p.get("sig");
+    if (PERIODS[p.get("per")]) state.period = p.get("per");
     if (p.has("ma")) {
       const ns = p.get("ma").split(",").map(Number).filter(validDays);
       state.mas = [...new Set(ns)].slice(0, MA_MAX);
@@ -53,7 +71,10 @@
     if (state.range !== "1Y") p.set("r", state.range);
     const mas = state.mas.slice().sort((x, y) => x - y).join(",");
     if (mas !== MA_DEFAULT.join(",")) p.set("ma", mas || "0");
-    const h = p.toString().replace(/%2C/g, ",");
+    if (state.pane !== "breadth") p.set("p", state.pane);
+    if (state.sig && state.sig !== defaultSig()) p.set("sig", state.sig);
+    if (state.period !== "all") p.set("per", state.period);
+    const h = p.toString().replace(/%2C/g, ",").replace(/%3A/g, ":");
     history.replaceState(null, "", h ? "#" + h : location.pathname + location.search);
   }
 
@@ -99,17 +120,87 @@
     if (state.mf) kinds.push("mutual_fund");
     if (state.deb) kinds.push("debenture");
     const n = dates.length;
-    const a = new Array(n).fill(0), d = new Array(n).fill(0), u = new Array(n).fill(0);
+    const z = () => new Array(n).fill(0);
+    const a = z(), d = z(), u = z(), ut = z(), dt = z();
     for (const k of kinds) {
       const b = data.breadth[k];
-      for (let i = 0; i < n; i++) { a[i] += b.a[i]; d[i] += b.d[i]; u[i] += b.u[i]; }
+      for (let i = 0; i < n; i++) { a[i] += b.a[i]; d[i] += b.d[i]; u[i] += b.u[i]; ut[i] += b.ut[i]; dt[i] += b.dt[i]; }
     }
     const net = a.map((x, i) => x - d[i]);
     const ad = [];
     let run = 0;
     for (const x of net) { run += x; ad.push(run); }
-    breadth = { a, d, u, net, ad };
+    breadth = { a, d, u, net, ad, ut, dt };
+    computeIndicators(breadth);
   }
+
+  // EMA that carries its last value across days with no reading (pandas ewm, adjust=False)
+  function ema(values, span) {
+    const k = 2 / (span + 1), out = new Array(values.length).fill(null);
+    let e = null;
+    for (let i = 0; i < values.length; i++) {
+      const v = values[i];
+      if (v != null) e = e == null ? v : k * v + (1 - k) * e;
+      out[i] = e;
+    }
+    return out;
+  }
+
+  /* Breadth indicators and the 0-5 score (same definitions as scripts/signal_study.py):
+   *   AD line above its 10-day MA
+   *   McClellan oscillator > 0   EMA19 - EMA39 of (A-D)/(A+D) x 1000, i.e. ratio-adjusted,
+   *                              so it is comparable between 2013 (~45 stocks) and today (~300)
+   *   10-day % advancing > 50%   EMA10 of A/(A+D)
+   *   10-day money flow > 50%    EMA10 of the share of turnover traded in rising stocks
+   *   Summation index rising     running total of the McClellan oscillator, up over 5 days */
+  function computeIndicators(b) {
+    const n = b.a.length;
+    const ratio = b.a.map((x, i) => (x + b.d[i] ? ((x - b.d[i]) / (x + b.d[i])) * 1000 : null));
+    const e19 = ema(ratio, 19), e39 = ema(ratio, 39);
+    b.mco = e19.map((x, i) => (x == null ? null : x - e39[i]));
+    b.msi = [];
+    let s = 0;
+    for (const x of b.mco) { if (x != null) s += x; b.msi.push(s); }
+    b.pctAdv10 = ema(b.a.map((x, i) => (x + b.d[i] ? x / (x + b.d[i]) : null)), 10);
+    b.flow = b.ut.map((x, i) => (x + b.dt[i] > 0 ? x / (x + b.dt[i]) : null));
+    b.flow10 = ema(b.flow, 10);
+    const ma10 = maOf(b, b.ad, 10);
+    b.comp = [];
+    b.score = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) {
+      if (ma10[i] == null || b.mco[i] == null || b.flow10[i] == null || i < 5) continue;
+      const c = [b.ad[i] > ma10[i], b.mco[i] > 0, b.pctAdv10[i] > 0.5, b.flow10[i] > 0.5, b.msi[i] - b.msi[i - 5] > 0];
+      b.comp[i] = c;
+      b.score[i] = c.filter(Boolean).length;
+    }
+  }
+
+  // ---------- forward returns (tradeable: act at the next day's open) ----------
+  let idxDays = [], posAfter = null;
+  function buildForward() {
+    const ix = data.index;
+    idxDays = [];
+    for (let i = 0; i < dates.length; i++) if (ix.o[i] > 0 && ix.c[i] > 0) idxDays.push(i);
+    posAfter = new Int32Array(dates.length);
+    let k = 0;
+    for (let i = 0; i < dates.length; i++) {
+      while (k < idxDays.length && idxDays[k] <= i) k++;
+      posAfter[i] = k;
+    }
+  }
+  // NEPSE % change from the open of the trading day after `i` to the close h trading days after `i`
+  function fwd(i, h) {
+    const k = posAfter[i];
+    if (k + h - 1 >= idxDays.length) return null;
+    return (data.index.c[idxDays[k + h - 1]] / data.index.o[idxDays[k]] - 1) * 100;
+  }
+  function summarize(list, h) {
+    const v = [];
+    for (const i of list) { const r = fwd(i, h); if (r != null) v.push(r); }
+    if (!v.length) return { n: 0, avg: null, up: null };
+    return { n: v.length, avg: v.reduce((x, y) => x + y, 0) / v.length, up: (v.filter((x) => x > 0).length / v.length) * 100 };
+  }
+  const inPeriod = (i) => dates[i] >= PERIODS[state.period].from && dates[i] < PERIODS[state.period].to;
 
   function priceFromIndex() {
     const ix = data.index;
@@ -195,6 +286,8 @@
       ad: { color: t.ad, lineWidth: 2, priceLineVisible: false, lastValueVisible: true, priceFormat: { type: "price", precision: 0, minMove: 1 } },
       adv: { color: t.up, priceLineVisible: false, lastValueVisible: false, priceFormat: { type: "price", precision: 0, minMove: 1 } },
       dec: { color: t.down, priceLineVisible: false, lastValueVisible: false, priceFormat: { type: "price", precision: 0, minMove: 1 } },
+      mco: { priceLineVisible: false, lastValueVisible: true, priceFormat: { type: "price", precision: 0, minMove: 1 } },
+      flow: { color: t.ink, lineWidth: 2, priceLineVisible: false, lastValueVisible: true, priceFormat: { type: "price", precision: 0, minMove: 1 } },
     };
   }
 
@@ -230,7 +323,10 @@
       ad: charts.ad.addLineSeries(so.ad),
       adv: charts.hist.addHistogramSeries(so.adv),
       dec: charts.hist.addHistogramSeries(so.dec),
+      mco: charts.hist.addHistogramSeries(so.mco),
+      flow: charts.hist.addLineSeries(so.flow),
     };
+    flowMid = series.flow.createPriceLine({ price: 50, color: t.muted, lineWidth: 1, lineStyle: LC.LineStyle.Dashed, axisLabelVisible: false, title: "" });
     charts.price.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     charts.hist.priceScale("right").applyOptions({ scaleMargins: { top: 0.18, bottom: 0.04 } });
 
@@ -249,6 +345,8 @@
     const anchor = (name, i) => {
       if (name === "price") return [series.candles, nearest(price.c, i)];
       if (name === "ad") return [series.ad, breadth.ad[i]];
+      if (state.pane === "mcclellan") return [series.mco, breadth.mco[i]];
+      if (state.pane === "flow") return [series.flow, breadth.flow10[i] == null ? null : breadth.flow10[i] * 100];
       return [series.adv, breadth.a[i]];
     };
     let syncingCross = false;
@@ -285,7 +383,11 @@
     charts.hist.applyOptions(chartOptions(t, true, true, true));
     const so = seriesOptions(t);
     for (const k of Object.keys(series)) series[k].applyOptions(so[k]);
+    flowMid.applyOptions({ color: t.muted });
+    setPane(state.pane);
+    setBreadthData();
     renderMas();
+    renderSignals();
     renderTiles();
     renderLegends(null);
   }
@@ -308,6 +410,18 @@
     series.ad.setData(lineData(b.ad));
     series.adv.setData(dates.map((time, i) => ({ time, value: b.a[i] })));
     series.dec.setData(dates.map((time, i) => ({ time, value: -b.d[i] })));
+    const t = theme();
+    series.mco.setData(dates.map((time, i) => (b.mco[i] == null ? { time } : { time, value: b.mco[i], color: b.mco[i] >= 0 ? t.up : t.down })));
+    series.flow.setData(lineData(b.flow10.map((x) => (x == null ? null : x * 100))));
+  }
+
+  function setPane(mode) {
+    state.pane = mode;
+    series.adv.applyOptions({ visible: mode === "breadth" });
+    series.dec.applyOptions({ visible: mode === "breadth" });
+    series.mco.applyOptions({ visible: mode === "mcclellan" });
+    series.flow.applyOptions({ visible: mode === "flow" });
+    for (const btn of document.querySelectorAll("#panes-mode button")) btn.setAttribute("aria-pressed", String(btn.dataset.pane === mode));
   }
 
   // ---------- moving averages ----------
@@ -378,8 +492,129 @@
     }
     setMaMessage("");
     renderMas();
+    renderSignals();
     renderLegends(null);
     writeHash();
+  }
+
+  // ---------- breadth signals ----------
+  const scoreWord = (s) => (s == null ? "" : s >= 4 ? "Bullish breadth" : s <= 1 ? "Bearish breadth" : "Mixed breadth");
+  // [name, reading when bullish, reading when bearish]
+  const COMP_TEXT = [
+    ["AD line vs its 10-day MA", "above: more stocks rising than falling lately", "below: more stocks falling than rising lately"],
+    ["McClellan oscillator", "above 0: breadth momentum improving", "below 0: breadth momentum fading"],
+    ["10-day % advancing", "above 50%: most stocks rose over two weeks", "below 50%: most stocks fell over two weeks"],
+    ["10-day money flow", "above 50%: most turnover went into rising stocks", "below 50%: most turnover went into falling stocks"],
+    ["Summation index, 5 days", "rising: the slower breadth trend is up", "falling: the slower breadth trend is down"],
+  ];
+
+  // Crossover choices follow the active moving averages: AD line x MA n, and MA a x MA b.
+  function sigOptions() {
+    const ns = state.mas.slice().sort((x, y) => x - y);
+    const out = ns.map((n) => ({ id: "ad:" + n, label: "AD line × MA" + n, a: null, b: n }));
+    for (let i = 0; i < ns.length; i++)
+      for (let j = i + 1; j < ns.length; j++) out.push({ id: `ma:${ns[i]}:${ns[j]}`, label: `MA${ns[i]} × MA${ns[j]}`, a: ns[i], b: ns[j] });
+    return out;
+  }
+  function defaultSig() {
+    const o = sigOptions();
+    return (o.find((x) => x.id === "ad:10") || o[0] || { id: "off" }).id;
+  }
+  function activeSig() {
+    if (state.sig === "off") return null;
+    const o = sigOptions();
+    return o.find((x) => x.id === state.sig) || o.find((x) => x.id === defaultSig()) || null;
+  }
+  function crossEvents(sg) {
+    const b = breadth;
+    const fast = sg.a == null ? b.ad : maOf(b, b.ad, sg.a);
+    const slow = maOf(b, b.ad, sg.b);
+    const up = [], dn = [];
+    let prev = null;
+    for (let i = 0; i < dates.length; i++) {
+      if (fast[i] == null || slow[i] == null) continue;
+      const st = fast[i] > slow[i];
+      if (prev !== null && st !== prev) (st ? up : dn).push(i);
+      prev = st;
+    }
+    return { up, dn, above: prev };
+  }
+
+  function renderSignals() {
+    if (!breadth || !charts) return;
+    const t = theme(), b = breadth, last = dates.length - 1;
+    for (const btn of document.querySelectorAll("#sig-period button")) btn.setAttribute("aria-pressed", String(btn.dataset.period === state.period));
+    const per = PERIODS[state.period].label;
+
+    // score card
+    const sc = b.score[last], comp = b.comp[last] || [];
+    const vals = [
+      `${fmtInt(b.ad[last])} vs ${fmtInt(maOf(b, b.ad, 10)[last])}`,
+      signed(b.mco[last], fmtInt),
+      b.pctAdv10[last] == null ? "–" : Math.round(b.pctAdv10[last] * 100) + "%",
+      b.flow10[last] == null ? "–" : Math.round(b.flow10[last] * 100) + "%",
+      signed(b.msi[last] - b.msi[last - 5], fmtInt) + " in 5d",
+    ];
+    $("score-card").innerHTML =
+      `<div class="score-top"><div><div class="k">Breadth score · ${dates[last]}</div>` +
+      `<div class="score-big">${sc == null ? "–" : sc}<small>/5</small></div>` +
+      `<div class="score-word">${scoreWord(sc)}</div></div>` +
+      `<div class="meter" aria-hidden="true">${[0, 1, 2, 3, 4].map((k) => `<span class="${k < sc ? "on" : ""}"></span>`).join("")}</div></div>` +
+      `<ul class="comps">` + COMP_TEXT.map(([name, good, bad], k) =>
+        `<li class="${comp[k] ? "ok" : "bad"}"><span class="ic" aria-hidden="true">${comp[k] ? "▲" : "▼"}</span>` +
+        `<span class="cn">${name}<small>${comp[k] ? good : bad}</small></span>` +
+        `<span class="cv">${vals[k]}</span><span class="sr">${comp[k] ? "bullish" : "bearish"}</span></li>`).join("") + `</ul>`;
+
+    // what followed each score
+    const buckets = [0, 1, 2, 3, 4, 5].map(() => []);
+    for (let i = 0; i < dates.length; i++) if (b.score[i] != null && inPeriod(i) && data.index.c[i] != null) buckets[b.score[i]].push(i);
+    const rows = buckets.map((list, s) => Object.assign({ s }, summarize(list, 5), { m20: summarize(list, 20) }));
+    const maxAbs = Math.max(0.01, ...rows.map((r) => Math.abs(r.avg || 0)));
+    $("score-hist").innerHTML =
+      `<h3>What followed each score <small>${per}</small></h3>` +
+      `<p class="note">NEPSE over the next 5 trading days, from the next open.</p>` +
+      `<table class="bars"><thead><tr><th>Score</th><th class="bar-h">Avg next 5 days</th><th>% up</th><th>20d avg</th><th>Days</th></tr></thead><tbody>` +
+      rows.slice().reverse().map((r) => {
+        const w = r.avg == null ? 0 : (Math.abs(r.avg) / maxAbs) * 50;
+        const bar = `<span class="bar ${r.avg >= 0 ? "pos-bar" : "neg-bar"}" style="width:${w}%;${r.avg >= 0 ? "left:50%" : "right:50%"}"></span>`;
+        return `<tr class="${r.s === sc ? "now" : ""}"><td>${r.s}${r.s === sc ? " <span class=\"tag\">now</span>" : ""}</td>` +
+          `<td class="bar-c"><span class="track">${bar}<span class="zero"></span></span><span class="${cls(r.avg)} bv">${r.avg == null ? "–" : signed(r.avg) + "%"}</span></td>` +
+          `<td>${r.up == null ? "–" : Math.round(r.up) + "%"}</td><td class="${cls(r.m20.avg)}">${r.m20.avg == null ? "–" : signed(r.m20.avg) + "%"}</td><td>${fmtInt(r.n)}</td></tr>`;
+      }).join("") + `</tbody></table>`;
+
+    // crossover select + stats + markers
+    const opts = sigOptions();
+    const sg = activeSig();
+    $("sig-select").innerHTML = `<option value="off">Off (no markers)</option>` +
+      opts.map((o) => `<option value="${o.id}"${sg && sg.id === o.id ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+    if (!sg) $("sig-select").value = "off";
+    if (!sg) {
+      series.ad.setMarkers([]);
+      $("cross-body").innerHTML = `<p class="note">Pick a crossover to mark it on the AD line and see what NEPSE did afterwards. The choices follow the moving averages you have switched on.</p>`;
+      return;
+    }
+    const ev = crossEvents(sg);
+    const mk = ev.up.map((i) => ({ i, up: true })).concat(ev.dn.map((i) => ({ i, up: false }))).sort((x, y) => x.i - y.i);
+    series.ad.setMarkers(mk.map((m) => ({
+      time: dates[m.i], position: m.up ? "belowBar" : "aboveBar", shape: m.up ? "arrowUp" : "arrowDown", color: m.up ? t.up : t.down, size: 1,
+    })));
+    const lastEv = mk[mk.length - 1];
+    const upL = ev.up.filter(inPeriod), dnL = ev.dn.filter(inPeriod);
+    const base = [];
+    for (let i = 0; i < dates.length; i++) if (inPeriod(i) && data.index.c[i] != null) base.push(i);
+    const st = [["Bullish crosses ▲", upL], ["Bearish crosses ▼", dnL], ["Any day (baseline)", base]].map(([name, l]) => [name, summarize(l, 5), summarize(l, 20)]);
+    const spread5 = st[0][1].avg - st[1][1].avg, spread20 = st[0][2].avg - st[1][2].avg;
+    const what = sg.a == null ? `the AD line moved ${"%DIR%"} its ${sg.b}-day MA` : `the AD line's ${sg.a}-day MA moved ${"%DIR%"} its ${sg.b}-day MA`;
+    $("cross-body").innerHTML =
+      (lastEv ? `<p class="latest"><span class="${lastEv.up ? "pos" : "neg"}">${lastEv.up ? "▲ Bullish" : "▼ Bearish"}</span> since ${dates[lastEv.i]}: ` +
+        `${what.replace("%DIR%", lastEv.up ? "above" : "below")}.</p>` : "") +
+      `<table class="xt"><thead><tr><th></th><th>Times</th><th>Next 5d</th><th>% up</th><th>Next 20d</th><th>% up</th></tr></thead><tbody>` +
+      st.map(([name, s5, s20]) => `<tr><td>${name}</td><td>${fmtInt(s5.n)}</td><td class="${cls(s5.avg)}">${s5.avg == null ? "–" : signed(s5.avg) + "%"}</td>` +
+        `<td>${s5.up == null ? "–" : Math.round(s5.up) + "%"}</td><td class="${cls(s20.avg)}">${s20.avg == null ? "–" : signed(s20.avg) + "%"}</td>` +
+        `<td>${s20.up == null ? "–" : Math.round(s20.up) + "%"}</td></tr>`).join("") + `</tbody></table>` +
+      (isFinite(spread5) ? `<p class="note">${per[0].toUpperCase() + per.slice(1)}, NEPSE did <b class="${cls(spread5)}">${signed(spread5)}%</b> better over 5 days and ` +
+        `<b class="${cls(spread20)}">${signed(spread20)}%</b> over 20 days after a bullish cross than after a bearish one.` +
+        (upL.length < 15 ? ` Only ${upL.length} bullish crosses — treat as anecdotal.` : "") + `</p>` : "");
   }
 
   function applyRange() {
@@ -428,11 +663,28 @@
       `<span class="item">${sw(t.ad, 1)}<b>${fmtInt(b.ad[bi])}</b> <span class="${cls(b.net[bi])}">(${signed(b.net[bi], fmtInt)})</span></span>` +
       maItems((n) => fmtInt(maOf(b, b.ad, n)[bi]));
 
-    $("lg-hist").innerHTML =
-      `<span class="item"><b>Daily breadth</b></span>` +
-      `<span class="item">${sw(t.up)}Advancers ${fmtInt(b.a[bi])}</span>` +
-      `<span class="item">${sw(t.down)}Decliners ${fmtInt(b.d[bi])}</span>` +
-      `<span class="item opt">Unchanged ${fmtInt(b.u[bi])}</span>`;
+    const sg = activeSig();
+    if (sg) $("lg-ad").innerHTML += `<span class="item opt"><span class="pos">▲</span><span class="neg">▼</span> ${esc(sg.label)} crosses</span>`;
+
+    if (state.pane === "mcclellan") {
+      const v = b.mco[bi];
+      $("lg-hist").innerHTML =
+        `<span class="item"><b>McClellan oscillator</b></span>` +
+        `<span class="item">${sw(v >= 0 ? t.up : t.down)}<span class="${cls(v)}">${signed(v, fmtInt)}</span></span>` +
+        `<span class="item opt">19/39-day EMA of net % advancing · above 0 = breadth improving</span>`;
+    } else if (state.pane === "flow") {
+      const v = b.flow10[bi];
+      $("lg-hist").innerHTML =
+        `<span class="item"><b>Money flow, 10-day</b></span>` +
+        `<span class="item">${sw(t.ink, 1)}${v == null ? "–" : Math.round(v * 100) + "%"} of turnover in rising stocks</span>` +
+        `<span class="item opt">today ${b.flow[bi] == null ? "–" : Math.round(b.flow[bi] * 100) + "%"} · dashed line = 50%</span>`;
+    } else {
+      $("lg-hist").innerHTML =
+        `<span class="item"><b>Daily breadth</b></span>` +
+        `<span class="item">${sw(t.up)}Advancers ${fmtInt(b.a[bi])}</span>` +
+        `<span class="item">${sw(t.down)}Decliners ${fmtInt(b.d[bi])}</span>` +
+        `<span class="item opt">Unchanged ${fmtInt(b.u[bi])}</span>`;
+    }
   }
 
   function renderTiles() {
@@ -450,7 +702,8 @@
       tile(`NEPSE · ${dates[li]}`, fmt(ix.c[li]), `<span class="${cls(chg)}">${signed(chg)} (${signed(pct)}%)</span> · Turnover ${npr(ix.t[li])}`) +
       tile(`<span class="sw" style="background:${t.up}"></span>Advancers`, fmtInt(b.a[last]), share(b.a[last])) +
       tile(`<span class="sw" style="background:${t.down}"></span>Decliners`, fmtInt(b.d[last]), share(b.d[last])) +
-      tile("Unchanged", fmtInt(b.u[last]), share(b.u[last])) +
+      tile("Breadth score", (b.score[last] == null ? "–" : b.score[last] + "<small>/5</small>"),
+        `${scoreWord(b.score[last])} · <a href="#signals">details</a>`) +
       tile("AD line, 5-day change", signed(b.ad[last] - b.ad[Math.max(0, last - 5)], fmtInt), `Today ${signed(b.net[last], fmtInt)}`);
   }
 
@@ -474,6 +727,7 @@
     if (r) charts.price.timeScale().setVisibleLogicalRange(r);
     renderTiles();
     renderTable();
+    renderSignals();
     renderLegends(null);
     $("t-mf").setAttribute("aria-pressed", String(state.mf));
     $("t-deb").setAttribute("aria-pressed", String(state.deb));
@@ -530,6 +784,13 @@
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
     input.addEventListener("focus", () => input.select());
     $("download").addEventListener("click", downloadCsv);
+    for (const btn of document.querySelectorAll("#panes-mode button")) {
+      btn.addEventListener("click", () => { setPane(btn.dataset.pane); renderLegends(null); writeHash(); });
+    }
+    for (const btn of document.querySelectorAll("#sig-period button")) {
+      btn.addEventListener("click", () => { state.period = btn.dataset.period; renderSignals(); writeHash(); });
+    }
+    $("sig-select").addEventListener("change", (e) => { state.sig = e.target.value; renderSignals(); renderLegends(null); writeHash(); });
     $("ma-chips").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-n]");
       if (b) toggleMa(Number(b.dataset.n));
@@ -570,7 +831,9 @@
     for (const k of Object.keys(counts)) $("n-" + k).textContent = counts[k];
     $("updated").textContent = "Data through " + data.last_date + ".";
 
+    buildForward();
     createCharts();
+    setPane(state.pane);
     price = priceFromIndex();
     setPriceData();
     renderBreadthAll(false);

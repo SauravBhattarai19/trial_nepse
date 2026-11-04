@@ -77,7 +77,46 @@ drag to pan). You can:
   days, and included in the CSV download
 - switch the price pane from the NEPSE index to any company symbol
 - jump to 1M / 3M / 6M / 1Y / 3Y / 5Y / All, and share a view by URL
-  (e.g. `#mf=0&s=NABIL&r=3M&ma=3,5,7`)
+  (e.g. `#mf=0&s=NABIL&r=3M&ma=3,5,7&p=flow&sig=ma:10:20&per=oos`)
+
+- switch the lower pane between advancers/decliners, the **McClellan
+  oscillator** and **money flow** (10-day share of turnover in rising stocks)
+- read the **Breadth signals** section: a live 0–5 breadth score, what NEPSE
+  did after each score historically, and a **crossover check** that marks
+  AD-line crossovers (AD × MA *n*, or MA *a* × MA *b*) on the chart and shows
+  NEPSE's average move and hit rate over the next 5 and 20 days, for
+  2013–2019 vs since 2020
+
+### What the data says (study of 2013 – Nov 2026)
+
+`python scripts/signal_study.py` reproduces all of this. Each result is checked
+on 2013–2019 and on 2020–2026 separately, with returns measured from the
+*next* day's open (NEPSE's opening gap already absorbs most of the previous
+day's follow-through, so close-to-close tests overstate any edge).
+
+- **The market decider:** day to day, NEPSE goes where most stocks go. Net %
+  advancing explains ~77% of daily index moves. Looking ahead, the best single
+  guide is *money flow*, the 10-day share of turnover in rising stocks. It beat
+  the index's own momentum at predicting the next week (rank correlation 0.19 /
+  0.12 vs 0.16 / 0.03).
+- **Crossovers that held up in both periods:** AD line × its 10-day MA
+  (bullish crosses beat bearish ones by ~0.8% over the next week) and the AD
+  line's 10-day × 20-day MA (1.9% / 3.2% over the next 20 days). The 50-day MA
+  crosses stopped working after 2020. 10 and 20 are now the default lines.
+- **Bearish signals are the louder warning since 2020:** after the AD line falls
+  below its 7-day MA, NEPSE was higher a week later only 34% of the time (vs 48%
+  normally).
+- **Breadth is a risk filter, not a return booster:** after costs no rule clearly
+  beat buy-and-hold, but e.g. holding only while the summation index rises
+  kept a similar return with about half the drawdown (−21% vs −42%).
+- **Textbook divergences fail here:** NEPSE highs without AD-line confirmation
+  were followed by *above*-average returns. Breadth thrusts and washouts weren't
+  reliable turning points either. NEPSE behaves like a momentum market.
+- **Mutual funds don't change the signals** (< 0.01 difference); excluding them
+  is cleaner, not more predictive.
+- **Limits:** the best reading explains only ~1–4% of next-week variation. The big
+  cycles are liquidity-driven (interest rates, NRB margin rules), which isn't in
+  this data; a liquidity series is the natural next thing to add.
 
 Mutual funds trade near their NPR 10 face value and debentures near NPR
 1,000, so `scripts/securities.py` classifies them automatically (newly listed

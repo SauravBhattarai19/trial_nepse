@@ -59,6 +59,15 @@
       </div>
     </div>
 
+    <div class="field">
+      <span class="field-label">Lower pane</span>
+      <div class="seg" role="group" aria-label="Indicator shown in the lower pane" id="panes-mode">
+        <button type="button" data-pane="breadth">Advancers / decliners</button>
+        <button type="button" data-pane="mcclellan">McClellan</button>
+        <button type="button" data-pane="flow">Money flow</button>
+      </div>
+    </div>
+
     <button type="button" class="btn" id="download">Download CSV</button>
   </section>
 
@@ -68,7 +77,72 @@
     <div class="pane pane-hist"><div class="legend" id="lg-hist"></div><div class="chart" id="c-hist"></div></div>
     <div class="status" id="status" hidden></div>
   </main>
-  <p class="hint">Scroll or pinch to zoom · drag to pan · double-click the price axis to reset its scale.</p>
+  <p class="hint">Scroll or pinch to zoom · drag to pan · double-click the price axis to reset its scale. ▲▼ on the AD line mark the crossover chosen below.</p>
+
+  <section class="signals" id="signals" aria-labelledby="sig-h">
+    <div class="sec-head">
+      <h2 id="sig-h">Breadth signals</h2>
+      <div class="field">
+        <span class="field-label">History measured over</span>
+        <div class="seg" id="sig-period" role="group" aria-label="Period for the historical statistics">
+          <button type="button" data-period="all">Since 2013</button>
+          <button type="button" data-period="is">2013–2019</button>
+          <button type="button" data-period="oos">Since 2020</button>
+        </div>
+      </div>
+    </div>
+    <div class="sig-grid">
+      <div class="card" id="score-card"></div>
+      <div class="card" id="score-hist"></div>
+      <div class="card" id="cross-card">
+        <h3><label for="sig-select">Crossover check</label></h3>
+        <select id="sig-select"></select>
+        <div id="cross-body"></div>
+      </div>
+    </div>
+    <p class="fine">Returns are the NEPSE index's % change from the <em>next</em> day's open to the close 5 or 20 trading days later, which is what you could have caught by acting the morning after a signal, before costs. Breadth follows the stocks / mutual funds / debentures choice above. Past behaviour, not a forecast or investment advice.</p>
+  </section>
+
+  <section class="insights" aria-labelledby="ins-h">
+    <h2 id="ins-h">What the data says</h2>
+    <p class="sub">A study of every trading day from Jan 2013 to Nov 2026, ordinary shares only, with each result checked separately on 2013–2019 and on 2020–2026 so a pattern has to hold in both to count. Returns are from the next day's open. Reproduce it with <code>python scripts/signal_study.py</code>.</p>
+
+    <article class="card hero">
+      <h3>The market decider</h3>
+      <p><b>On any given day, NEPSE goes where the majority of stocks go.</b> The net share of stocks rising vs falling explains about <b>77%</b> of the index's daily moves (correlation 0.88 in both periods). Looking ahead, the best single guide is <b>where the money goes</b>: the 10-day share of turnover traded in rising stocks (<em>money flow</em>). It predicted the following week better than any price-based reading: rank correlation 0.19 in 2013–19 and 0.12 since 2020, against 0.16 and 0.03 for the index's own 20-day momentum. Breadth plus turnover tells you more than the price line alone.</p>
+    </article>
+
+    <div class="ins-grid">
+      <article class="card">
+        <h3>NEPSE follows through, but at the open</h3>
+        <p>A strong day tends to be followed by a higher open: the correlation of today's move with tomorrow's opening gap is 0.37 since 2020. From the open onward there is nothing left (−0.02). Close-to-close backtests therefore look far better than anything you could have traded. Every number on this page is measured from the next open.</p>
+      </article>
+      <article class="card">
+        <h3>The AD-line crossovers that held up</h3>
+        <p>Two crossovers worked in <em>both</em> periods. The fast one is <b>the AD line crossing its 10-day MA</b>: after bullish crosses NEPSE did 0.8% better over the next week than after bearish ones (2013–19 and 2020–26 alike). The slow one is <b>the AD line's 10-day MA crossing its 20-day MA</b>: 1.9% and 3.2% better over the next 20 days. Crossovers of the 50-day MA looked best before 2020 and stopped working after. That is why 10 and 20 are now the default lines.</p>
+      </article>
+      <article class="card">
+        <h3>Bearish crosses are the louder warning</h3>
+        <p>Since 2020 the sell side of breadth has been more informative than the buy side. After the AD line fell below its 7-day MA, NEPSE was higher a week later only <b>34%</b> of the time, against 48% on a typical day. With all five score readings bearish (score 0), the next week averaged −0.3% to −0.4% in both periods, versus about +0.9% when all five were bullish.</p>
+      </article>
+      <article class="card">
+        <h3>Use breadth to cut risk, not to chase returns</h3>
+        <p>After 0.4% trading costs, no breadth rule clearly beat simply holding the index. What they do is avoid the worst stretches. Holding NEPSE only while the summation index was rising returned 13.0% a year in 2013–19 and 12.2% since 2020 (buy-and-hold: 12.2% and 13.7%). It did that while invested half the time, and its worst fall was about −21% against −42%. Money flow above 50% gave a similar result (worst fall −19% and −24%).</p>
+      </article>
+      <article class="card">
+        <h3>Textbook divergences fail on NEPSE</h3>
+        <p>In US-style breadth analysis, an index making new highs without the AD line is a warning. Here it wasn't: those days were followed by <b>+4.0%</b> (2013–19) and <b>+2.6%</b> (2020–26) over 20 days, better than average. NEPSE highs tend to keep running. Breadth thrusts and washouts (very low % advancing) were not reliable turning points either. This is a momentum market: weak breadth is a reason to wait, not to bottom-fish.</p>
+      </article>
+      <article class="card">
+        <h3>Mutual funds don't change the signals</h3>
+        <p>Including or excluding mutual funds and debentures moves the predictive correlations by less than 0.01. Fund units track the market loosely (same-day correlation 0.55, against 0.88 for stocks) and are a small share of the count. Excluding them gives cleaner numbers, not better forecasts.</p>
+      </article>
+      <article class="card">
+        <h3>What this data can't see</h3>
+        <p>Even the best reading explains only about 1–4% of the variation in next week's return. NEPSE's big multi-month cycles are driven by liquidity: bank interest rates, the interbank rate, and NRB policy on margin lending. None of that is in price data. If you fit one more input, make it a liquidity series such as the interbank rate. Treat breadth as a risk filter rather than a prediction.</p>
+      </article>
+    </div>
+  </section>
 
   <section class="recent">
     <h2>Last 10 trading days</h2>
