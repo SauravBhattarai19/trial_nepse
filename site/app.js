@@ -17,11 +17,17 @@
   const TYPE_LABEL = { equity: "Stock", mutual_fund: "Mutual fund", debenture: "Debenture" };
   const RANGE_MONTHS = { "1M": 1, "3M": 3, "6M": 6, "1Y": 12, "3Y": 36, "5Y": 60 };
 
-  const state = { mf: true, deb: true, symbol: "NEPSE", range: "1Y" };
+  const MA_PRESETS = [3, 5, 7, 10, 20, 50];
+  const MA_DEFAULT = [5, 7];
+  const MA_MAX = 3;          // at most 3 lines: no 4-colour set stays distinguishable in every combination
+  const MA_MIN_DAYS = 2, MA_MAX_DAYS = 1000;
+
+  const state = { mf: true, deb: true, symbol: "NEPSE", range: "1Y", mas: MA_DEFAULT.slice() };
+  const maSlot = new Map();  // period -> colour slot 0..2; a line keeps its colour while it is on
   let data = null;          // market.json
   let dates = [];           // shared axis, "YYYY-MM-DD"
-  let breadth = null;       // {a, d, u, net, ad, ma5, ma7}
-  let price = null;         // {o, h, l, c, t, ma5, ma7, label}
+  let breadth = null;       // {a, d, u, net, ad, maCache}
+  let price = null;         // {o, h, l, c, t, prev, label, kind, maCache}
   let typeOf = {};          // symbol -> type
   const companyCache = new Map();
   let charts, series;
@@ -33,14 +39,21 @@
     if (p.get("deb") === "0") state.deb = false;
     if (p.get("s")) state.symbol = p.get("s").toUpperCase();
     if (p.get("r") && (RANGE_MONTHS[p.get("r")] || p.get("r") === "ALL")) state.range = p.get("r");
+    if (p.has("ma")) {
+      const ns = p.get("ma").split(",").map(Number).filter(validDays);
+      state.mas = [...new Set(ns)].slice(0, MA_MAX);
+    }
   }
+  const validDays = (n) => Number.isInteger(n) && n >= MA_MIN_DAYS && n <= MA_MAX_DAYS;
   function writeHash() {
     const p = new URLSearchParams();
     if (!state.mf) p.set("mf", "0");
     if (!state.deb) p.set("deb", "0");
     if (state.symbol !== "NEPSE") p.set("s", state.symbol);
     if (state.range !== "1Y") p.set("r", state.range);
-    const h = p.toString();
+    const mas = state.mas.slice().sort((x, y) => x - y).join(",");
+    if (mas !== MA_DEFAULT.join(",")) p.set("ma", mas || "0");
+    const h = p.toString().replace(/%2C/g, ",");
     history.replaceState(null, "", h ? "#" + h : location.pathname + location.search);
   }
 
@@ -74,6 +87,12 @@
     }
     return out;
   }
+  // moving average of `values`, computed once per period and cached on `owner`
+  function maOf(owner, values, n) {
+    if (!owner.maCache) owner.maCache = new Map();
+    if (!owner.maCache.has(n)) owner.maCache.set(n, sma(values, n));
+    return owner.maCache.get(n);
+  }
 
   function computeBreadth() {
     const kinds = ["equity"];
@@ -89,7 +108,7 @@
     const ad = [];
     let run = 0;
     for (const x of net) { run += x; ad.push(run); }
-    breadth = { a, d, u, net, ad, ma5: sma(ad, 5), ma7: sma(ad, 7) };
+    breadth = { a, d, u, net, ad };
   }
 
   function priceFromIndex() {
@@ -97,8 +116,6 @@
     return finishPrice({ o: ix.o, h: ix.h, l: ix.l, c: ix.c, t: ix.t, label: "NEPSE Index", kind: null });
   }
   function finishPrice(p) {
-    p.ma5 = sma(p.c, 5);
-    p.ma7 = sma(p.c, 7);
     p.prev = new Array(p.c.length).fill(null);   // previous close, for the change readout
     let last = null;
     for (let i = 0; i < p.c.length; i++) { p.prev[i] = last; if (p.c[i] != null) last = p.c[i]; }
@@ -140,7 +157,7 @@
     const v = (n) => s.getPropertyValue(n).trim();
     return {
       surface: v("--surface"), grid: v("--grid"), border: v("--border"), muted: v("--muted"),
-      ink: v("--ink"), up: v("--up"), down: v("--down"), ma5: v("--ma5"), ma7: v("--ma7"),
+      ink: v("--ink"), up: v("--up"), down: v("--down"), ma: [v("--ma1"), v("--ma2"), v("--ma3")],
       ad: v("--ad"), vol: v("--vol"),
     };
   }
@@ -168,7 +185,6 @@
   }
 
   function seriesOptions(t) {
-    const line = (color, width) => ({ color, lineWidth: width, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     return {
       candles: {
         upColor: "rgba(0,0,0,0)", borderUpColor: t.up, wickUpColor: t.up,   // hollow up candles
@@ -176,9 +192,7 @@
         priceLineVisible: true, priceLineColor: t.muted, lastValueVisible: true,
       },
       volume: { color: t.vol, priceScaleId: "vol", priceFormat: { type: "volume" }, priceLineVisible: false, lastValueVisible: false },
-      pMa5: line(t.ma5, 1.5), pMa7: line(t.ma7, 1.5),
       ad: { color: t.ad, lineWidth: 2, priceLineVisible: false, lastValueVisible: true, priceFormat: { type: "price", precision: 0, minMove: 1 } },
-      adMa5: line(t.ma5, 1.5), adMa7: line(t.ma7, 1.5),
       adv: { color: t.up, priceLineVisible: false, lastValueVisible: false, priceFormat: { type: "price", precision: 0, minMove: 1 } },
       dec: { color: t.down, priceLineVisible: false, lastValueVisible: false, priceFormat: { type: "price", precision: 0, minMove: 1 } },
     };
@@ -213,11 +227,7 @@
     series = {
       volume: charts.price.addHistogramSeries(so.volume),
       candles: charts.price.addCandlestickSeries(so.candles),
-      pMa5: charts.price.addLineSeries(so.pMa5),
-      pMa7: charts.price.addLineSeries(so.pMa7),
       ad: charts.ad.addLineSeries(so.ad),
-      adMa5: charts.ad.addLineSeries(so.adMa5),
-      adMa7: charts.ad.addLineSeries(so.adMa7),
       adv: charts.hist.addHistogramSeries(so.adv),
       dec: charts.hist.addHistogramSeries(so.dec),
     };
@@ -275,6 +285,7 @@
     charts.hist.applyOptions(chartOptions(t, true, true, true));
     const so = seriesOptions(t);
     for (const k of Object.keys(series)) series[k].applyOptions(so[k]);
+    renderMas();
     renderTiles();
     renderLegends(null);
   }
@@ -290,17 +301,85 @@
         ? { time }
         : { time, open: p.o[i], high: Math.max(p.h[i], p.o[i], p.c[i]), low: Math.min(p.l[i], p.o[i], p.c[i]), close: p.c[i] }));
     series.volume.setData(lineData(p.t));
-    series.pMa5.setData(lineData(p.ma5));
-    series.pMa7.setData(lineData(p.ma7));
   }
 
   function setBreadthData() {
     const b = breadth;
     series.ad.setData(lineData(b.ad));
-    series.adMa5.setData(lineData(b.ma5));
-    series.adMa7.setData(lineData(b.ma7));
     series.adv.setData(dates.map((time, i) => ({ time, value: b.a[i] })));
     series.dec.setData(dates.map((time, i) => ({ time, value: -b.d[i] })));
+  }
+
+  // ---------- moving averages ----------
+  // One line on the price pane and one on the AD pane per active period.
+  // Lines are rebuilt from scratch on any change (at most 6 series).
+  let maSeries = [];
+  const maStyle = (slot) => (slot === 2 ? LC.LineStyle.Dashed : LC.LineStyle.Solid);
+
+  function assignSlots() {
+    for (const n of [...maSlot.keys()]) if (!state.mas.includes(n)) maSlot.delete(n);
+    for (const n of state.mas) {
+      if (maSlot.has(n)) continue;
+      const used = new Set(maSlot.values());
+      maSlot.set(n, [0, 1, 2].find((s) => !used.has(s)));
+    }
+  }
+
+  function renderMas() {
+    assignSlots();
+    for (const [chart, s] of maSeries) chart.removeSeries(s);
+    maSeries = [];
+    const t = theme();
+    for (const n of state.mas) {
+      const slot = maSlot.get(n);
+      const opts = {
+        color: t.ma[slot], lineWidth: 1.5, lineStyle: maStyle(slot),
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      };
+      const ps = charts.price.addLineSeries(opts);
+      ps.setData(lineData(maOf(price, price.c, n)));
+      const as = charts.ad.addLineSeries(Object.assign({}, opts, { priceFormat: { type: "price", precision: 0, minMove: 1 } }));
+      as.setData(lineData(maOf(breadth, breadth.ad, n)));
+      maSeries.push([charts.price, ps], [charts.ad, as]);
+    }
+    renderMaControls();
+  }
+
+  function maSwatch(n) {
+    const slot = maSlot.get(n);
+    const c = theme().ma[slot];
+    const bg = slot === 2 ? `repeating-linear-gradient(90deg, ${c} 0 4px, transparent 4px 7px)` : c;
+    return `<span class="sw sw-line" style="background:${bg}"></span>`;
+  }
+
+  function renderMaControls() {
+    const full = state.mas.length >= MA_MAX;
+    const shown = [...new Set([...MA_PRESETS, ...state.mas])].sort((a, b) => a - b);
+    $("ma-chips").innerHTML = shown.map((n) => {
+      const on = state.mas.includes(n);
+      return `<button type="button" class="ma" data-n="${n}" aria-pressed="${on}"` +
+        (!on && full ? ` aria-disabled="true" title="Up to ${MA_MAX} at once"` : "") +
+        `>${on ? maSwatch(n) : ""}${n}</button>`;
+    }).join("");
+  }
+
+  function setMaMessage(text) { $("ma-msg").textContent = text || ""; }
+
+  function toggleMa(n, forceOn) {
+    const on = state.mas.includes(n);
+    if (on && !forceOn) {
+      state.mas = state.mas.filter((x) => x !== n);
+    } else if (!on) {
+      if (state.mas.length >= MA_MAX) {
+        setMaMessage(`Up to ${MA_MAX} moving averages at once. Turn one off first.`);
+        return;
+      }
+      state.mas = state.mas.concat(n);
+    }
+    setMaMessage("");
+    renderMas();
+    renderLegends(null);
+    writeHash();
   }
 
   function applyRange() {
@@ -326,6 +405,8 @@
     const at = i == null ? lastIndexWith(p.c) : i;
     const bi = i == null ? dates.length - 1 : i;
     const sw = (color, line) => `<span class="sw${line ? " sw-line" : ""}" style="background:${color}"></span>`;
+    const maItems = (value) => state.mas.slice().sort((x, y) => x - y)
+      .map((n) => `<span class="item">${maSwatch(n)}MA${n} ${value(n)}</span>`).join("");
 
     let html = `<span class="item"><b>${esc(p.label)}</b>${p.kind ? `<span class="tag">${TYPE_LABEL[p.kind]}</span>` : ""}</span>`;
     if (at >= 0 && p.c[at] != null) {
@@ -334,8 +415,7 @@
         `<span class="item opt">O ${fmt(p.o[at])}</span><span class="item opt">H ${fmt(p.h[at])}</span>` +
         `<span class="item opt">L ${fmt(p.l[at])}</span><span class="item">C <b>${fmt(p.c[at])}</b></span>` +
         `<span class="item ${cls(chg)}">${signed(chg)}%</span>` +
-        `<span class="item">${sw(t.ma5, 1)}MA5 ${fmt(p.ma5[at])}</span>` +
-        `<span class="item">${sw(t.ma7, 1)}MA7 ${fmt(p.ma7[at])}</span>` +
+        maItems((n) => fmt(maOf(p, p.c, n)[at])) +
         `<span class="item opt">Turnover ${npr(p.t[at])}</span>`;
     } else if (i != null) {
       html += `<span class="item">${dates[i]} · no trade</span>`;
@@ -346,8 +426,7 @@
       `<span class="item"><b>Advance/Decline line</b></span>` +
       `<span class="item opt">${dates[bi]}</span>` +
       `<span class="item">${sw(t.ad, 1)}<b>${fmtInt(b.ad[bi])}</b> <span class="${cls(b.net[bi])}">(${signed(b.net[bi], fmtInt)})</span></span>` +
-      `<span class="item">${sw(t.ma5, 1)}MA5 ${fmtInt(b.ma5[bi])}</span>` +
-      `<span class="item">${sw(t.ma7, 1)}MA7 ${fmtInt(b.ma7[bi])}</span>`;
+      maItems((n) => fmtInt(maOf(b, b.ad, n)[bi]));
 
     $("lg-hist").innerHTML =
       `<span class="item"><b>Daily breadth</b></span>` +
@@ -391,6 +470,7 @@
     const r = keepRange ? charts.price.timeScale().getVisibleLogicalRange() : null;
     computeBreadth();
     setBreadthData();
+    renderMas();
     if (r) charts.price.timeScale().setVisibleLogicalRange(r);
     renderTiles();
     renderTable();
@@ -414,6 +494,7 @@
     }
     $("symbol").value = sym;
     setPriceData();
+    renderMas();
     if (r) charts.price.timeScale().setVisibleLogicalRange(r);
     renderLegends(null);
     writeHash();
@@ -421,8 +502,14 @@
 
   function downloadCsv() {
     const ix = data.index, b = breadth;
-    const lines = ["date,advancers,decliners,unchanged,net_advances,ad_line,nepse_close"];
-    dates.forEach((d, i) => lines.push([d, b.a[i], b.d[i], b.u[i], b.net[i], b.ad[i], ix.c[i] == null ? "" : ix.c[i]].join(",")));
+    const mas = state.mas.slice().sort((x, y) => x - y);
+    const adMa = mas.map((n) => maOf(b, b.ad, n));
+    const ixMa = mas.map((n) => sma(ix.c, n));
+    const r = (v, k) => (v == null ? "" : +v.toFixed(k));
+    const lines = [["date,advancers,decliners,unchanged,net_advances,ad_line", ...mas.map((n) => "ad_line_ma" + n),
+      "nepse_close", ...mas.map((n) => "nepse_close_ma" + n)].join(",")];
+    dates.forEach((d, i) => lines.push([d, b.a[i], b.d[i], b.u[i], b.net[i], b.ad[i], ...adMa.map((m) => r(m[i], 2)),
+      r(ix.c[i], 2), ...ixMa.map((m) => r(m[i], 2))].join(",")));
     const parts = ["nepse-breadth"];
     if (!state.mf) parts.push("ex-mutual-funds");
     if (!state.deb) parts.push("ex-debentures");
@@ -443,6 +530,18 @@
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
     input.addEventListener("focus", () => input.select());
     $("download").addEventListener("click", downloadCsv);
+    $("ma-chips").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-n]");
+      if (b) toggleMa(Number(b.dataset.n));
+    });
+    $("ma-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const field = $("ma-input");
+      const n = Number(field.value);
+      if (!validDays(n)) { setMaMessage(`Enter a whole number of days from ${MA_MIN_DAYS} to ${MA_MAX_DAYS}.`); return; }
+      field.value = "";
+      toggleMa(n, true);
+    });
   }
 
   async function main() {
@@ -472,12 +571,10 @@
     $("updated").textContent = "Data through " + data.last_date + ".";
 
     createCharts();
-    computeBreadth();
-    setBreadthData();
     price = priceFromIndex();
     setPriceData();
+    renderBreadthAll(false);
     applyRange();
-    renderBreadthAll(true);
     wireControls();
     status.hidden = true;
     if (state.symbol !== "NEPSE") await selectSymbol(state.symbol);

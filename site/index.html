@@ -47,6 +47,18 @@
       </div>
     </div>
 
+    <div class="field">
+      <span class="field-label">Moving averages, in trading days (up to 3)</span>
+      <div class="mas" role="group" aria-label="Moving average periods">
+        <span class="mas" id="ma-chips"></span>
+        <form class="ma-add" id="ma-form" autocomplete="off">
+          <input id="ma-input" type="number" inputmode="numeric" min="2" max="1000" step="1" placeholder="Days" aria-label="Add a moving average of this many trading days">
+          <button type="submit" class="ma">Add</button>
+        </form>
+        <p class="ma-msg" id="ma-msg" role="status"></p>
+      </div>
+    </div>
+
     <button type="button" class="btn" id="download">Download CSV</button>
   </section>
 
