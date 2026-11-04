@@ -53,7 +53,9 @@ Adding new companies is now largely automatic: run `discoverCompanies.py` to ref
 
 `.github/workflows/schedule-updater.yml` runs `dailyDataScrapper.py` five times per day (Sun–Fri), the first at 15:15 NPT right after NEPSE's 15:00 close, commits any changed CSVs as "Update data", and pushes to `main`. The repeated runs are intentional retries in case an earlier run misses the daily data. The repo's commit history is overwhelmingly these automated "Update data" commits.
 
-`.github/workflows/update-breadth-chart.yml` runs on `workflow_run` after each scraper run (and on pushes touching `site/`/`scripts/`). It runs the `scripts/` breadth pipeline (`fetch_nepse_index.py` → `build_breadth.py` → `build_combined.py` → `securities.py` → `plot_chart.py`), commits the outputs, then `build_site.py` builds `_site/` and deploys it to GitHub Pages (repo Settings → Pages → Source must be "GitHub Actions").
+`.github/workflows/update-breadth-chart.yml` runs on `workflow_run` after each scraper run (and on pushes touching `site/`/`scripts/`). It runs the `scripts/` breadth pipeline (`fetch_nepse_index.py` → `build_breadth.py` → `build_combined.py` → `securities.py` → `plot_chart.py`), commits the outputs, then `build_site.py` builds `_site/` and deploys it to GitHub Pages (repo Settings → Pages → Source must be "GitHub Actions"). It also runs `scripts/log_signals.py`, which upserts **only the latest day** into `data/signal-log.csv` (a forward-test record; never rewrite earlier rows).
+
+`.github/workflows/data-freshness.yml` runs at 17:45 and 20:45 NPT (Sun–Fri). `scripts/check_freshness.py` compares the date on ShareSansar's `today-share-price` with the newest date in `data/company-wise` (comparing with the site, not the calendar, keeps holidays from alarming). If we are behind it re-dispatches `update-companies-data` and opens/comments an issue labelled `data-alarm`; once fresh it closes those issues. `dailyDataScrapper.py` itself exits non-zero if it cannot read the date, the table lacks expected columns, or fewer than 100 of our companies match (page layout change).
 
 ## Interactive site
 
