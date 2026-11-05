@@ -70,6 +70,9 @@
   const validDays = (n) => Number.isInteger(n) && n >= MA_MIN_DAYS && n <= MA_MAX_DAYS;
   function writeHash() {
     const p = new URLSearchParams();
+    // screener.js owns the view keys; keep them when this chart rewrites the hash
+    const cur = new URLSearchParams(location.hash.slice(1));
+    for (const k of ["v", "q"]) if (cur.has(k)) p.set(k, cur.get(k));
     if (!state.mf) p.set("mf", "0");
     if (!state.deb) p.set("deb", "0");
     if (!state.adLine) p.set("adl", "0");
@@ -298,6 +301,10 @@
       if (c == null || c <= 0) continue;  // unlisted/suspended placeholder rows
       rows.push({ d: f[iD], o: num(f[iO]) || c, h: num(f[iH]) || c, l: num(f[iL]) || c, c, t: num(f[iT]), pc: num(f[iP]) });
     }
+    // One row per date, in date order (the last row of a repeated date wins), as
+    // scripts/securities.py load_companies does; the adjustment walks neighbours.
+    rows.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
+    for (let k = rows.length - 2; k >= 0; k--) if (rows[k].d === rows[k + 1].d) rows.splice(k, 1);
     // Back-adjust for bonus/rights issues: where the raw close-to-close move differs
     // from the effective move, scale every earlier price by the ratio, so charts and
     // moving averages don't show a fake crash on book-closure days.
@@ -1094,7 +1101,7 @@
       tile(`<span class="sw" style="background:${t.up}"></span>Advancers`, fmtInt(b.a[last]), share(b.a[last])) +
       tile(`<span class="sw" style="background:${t.down}"></span>Decliners`, fmtInt(b.d[last]), share(b.d[last])) +
       tile("Breadth score", (b.score[last] == null ? "–" : b.score[last] + "<small>/5</small>"),
-        `${scoreWord(b.score[last])} · <a href="#signals">details</a>`) +
+        `${scoreWord(b.score[last])} · <button type="button" class="linkish" data-scroll="signals">details</button>`) +
       tile("AD line, 5-day change", signed(b.ad[last] - b.ad[Math.max(0, last - 5)], fmtInt), `Today ${signed(b.net[last], fmtInt)}`);
   }
 
@@ -1189,6 +1196,10 @@
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
     input.addEventListener("focus", () => input.select());
     $("download").addEventListener("click", downloadCsv);
+    $("tiles").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-scroll]");
+      if (b) $(b.dataset.scroll).scrollIntoView({ behavior: "smooth" });
+    });
     $("sector-table").addEventListener("click", (e) => {
       const sortBtn = e.target.closest("button[data-sort]");
       if (sortBtn) {
@@ -1304,5 +1315,11 @@
     requestAnimationFrame(() => requestAnimationFrame(applyRange));
   }
 
-  main();
+  // Started by screener.js the first time the "Market breadth" view is opened, so the
+  // 2.5 MB market.json and the charts only load when someone looks at them.
+  let started = false;
+  window.NepseMarket = {
+    start() { if (!started) { started = true; main(); } },
+    openSymbol(sym) { if (started && charts) selectSymbol(sym); else state.symbol = sym; },
+  };
 })();

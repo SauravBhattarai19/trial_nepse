@@ -3,220 +3,363 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NEPSE Market Breadth</title>
-  <meta name="description" content="Interactive NEPSE index and market breadth (advancers, decliners, Advance/Decline line) chart, updated after every trading day.">
+  <title>NEPSE Analyst · AI stock screener and market breadth</title>
+  <meta name="description" content="Daily NEPSE stock analysis: AI-ranked suggestions, technical setups with their measured track record, sector rotation, market map and market breadth. Updated after every trading day.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='6' width='3' height='7' fill='%231baf7a'/%3E%3Crect x='7' y='3' width='3' height='9' fill='%23e34948'/%3E%3Crect x='12' y='5' width='2' height='6' fill='%231baf7a'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="top">
-    <div>
-      <h1>NEPSE Market Breadth</h1>
-      <p class="sub">NEPSE index, Advance/Decline line and daily advancers vs decliners. <span id="updated">Loading…</span></p>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div><b>NEPSE Analyst</b><span class="fresh" id="fresh">Loading…</span></div>
     </div>
+    <nav class="tabs" aria-label="Views">
+      <a href="#v=today" data-view="today">Today</a>
+      <a href="#v=screener" data-view="screener">Screener</a>
+      <a href="#v=stock" data-view="stock">Stock</a>
+      <a href="#v=sectors" data-view="sectors">Sectors</a>
+      <a href="#v=market" data-view="market">Market breadth</a>
+      <a href="#v=evidence" data-view="evidence">How it decides</a>
+    </nav>
+    <form class="find" id="find" autocomplete="off" role="search">
+      <input id="find-q" list="find-list" placeholder="Find a stock" aria-label="Find a stock by symbol" spellcheck="false">
+      <datalist id="find-list"></datalist>
+    </form>
   </header>
 
-  <section class="tiles" id="tiles" aria-live="polite"></section>
+  <div class="loading" id="boot">Loading today's analysis…</div>
 
-  <section class="controls" aria-label="Chart controls">
-    <div class="field">
-      <label class="field-label" for="symbol">Price chart</label>
-      <input id="symbol" list="symbols" value="NEPSE" autocomplete="off" spellcheck="false" aria-label="Security to chart (NEPSE index or a company symbol)">
-      <datalist id="symbols"></datalist>
-      <span class="adj-row"><label><input type="checkbox" id="t-adj" checked> Adjusted for bonus/rights</label></span>
+  <!-- ============================== TODAY ============================== -->
+  <section class="view" id="v-today" hidden>
+    <div class="regime" id="regime"></div>
+    <div class="banner" id="banner" hidden></div>
+    <section class="block" id="watch-block" hidden>
+      <div class="block-head"><h2>Your watchlist</h2><span class="sub-k">tap ☆ on any stock to add it</span></div>
+      <div class="watch-rows" id="watch"></div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <h2>AI top-rated today</h2>
+        <span class="sub-k" id="picks-sub"></span>
+        <a class="more" href="#v=evidence">How accurate is it?</a>
+      </div>
+      <div class="cards" id="picks"></div>
+    </section>
+
+    <div class="two-col">
+      <section class="block">
+        <div class="block-head"><h2>Technical leaders</h2><span class="sub-k">strongest charts by the textbook, with the AI's view</span></div>
+        <div class="rows" id="leaders"></div>
+      </section>
+      <section class="block">
+        <div class="block-head"><h2>Review before buying more</h2><span class="sub-k">the AI's lowest-rated liquid stocks</span></div>
+        <div class="rows" id="avoid"></div>
+      </section>
     </div>
 
-    <div class="field">
-      <span class="field-label">Count in breadth</span>
-      <div class="chips" role="group" aria-label="Security types counted in breadth">
-        <span class="chip chip-fixed" title="Ordinary shares are always counted">Stocks <span id="n-equity"></span></span>
-        <button type="button" class="chip" id="t-mf" aria-pressed="true">Mutual funds <span id="n-mutual_fund"></span></button>
-        <button type="button" class="chip" id="t-deb" aria-pressed="true">Debentures <span id="n-debenture"></span></button>
+    <section class="block">
+      <div class="block-head"><h2>Setups that fired today</h2><span class="sub-k">each with what it was followed by on NEPSE</span></div>
+      <div class="setups" id="setups"></div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <h2>Market map</h2>
+        <span class="sub-k">size = turnover · colour = return</span>
+        <div class="seg" id="map-win" role="group" aria-label="Return window">
+          <button type="button" data-w="ch1">1D</button><button type="button" data-w="ch5">1W</button>
+          <button type="button" data-w="ch20">1M</button><button type="button" data-w="ch60">3M</button>
+        </div>
+      </div>
+      <div class="map-wrap"><div class="map" id="map" role="img" aria-label="Market map of NEPSE stocks by sector"></div><div class="scale" id="map-scale"></div></div>
+    </section>
+  </section>
+
+  <!-- ============================== SCREENER ============================== -->
+  <section class="view" id="v-screener" hidden>
+    <div class="filters">
+      <input id="f-q" placeholder="Symbol" aria-label="Filter by symbol" spellcheck="false">
+      <select id="f-sec" aria-label="Sector"><option value="">All sectors</option></select>
+      <div class="toggles" id="f-tags" role="group" aria-label="Filters">
+        <button type="button" class="tog" data-f="ai70" aria-pressed="false">AI ≥ 70</button>
+        <button type="button" class="tog" data-f="up" aria-pressed="false">Uptrend</button>
+        <button type="button" class="tog" data-f="tt" aria-pressed="false">Trend template 8/8</button>
+        <button type="button" class="tog" data-f="s2" aria-pressed="false">Stage 2</button>
+        <button type="button" class="tog" data-f="setup" aria-pressed="false">Setup in last 5 days</button>
+        <button type="button" class="tog" data-f="liq" aria-pressed="false">Liquid</button>
+        <button type="button" class="tog" data-f="watch" aria-pressed="false">☆ Watchlist</button>
+      </div>
+      <span class="count" id="f-count"></span>
+    </div>
+    <div class="table-wrap"><table class="scr" id="scr"></table></div>
+  </section>
+
+  <!-- ============================== STOCK ============================== -->
+  <section class="view" id="v-stock" hidden>
+    <div class="stock-head" id="st-head"></div>
+    <div class="score-strip" id="st-scores"></div>
+    <div class="stock-grid">
+      <div class="card chart-card">
+        <div class="toolbar">
+          <div class="toggles" id="st-over" role="group" aria-label="Overlays">
+            <button type="button" class="tog" data-o="ma" aria-pressed="true"><span class="sw sw-line" style="background:var(--ma1)"></span>MA 20/50/200</button>
+            <button type="button" class="tog" data-o="st" aria-pressed="true"><span class="sw sw-line" style="background:linear-gradient(90deg,var(--up) 50%,var(--down) 50%)"></span>Supertrend</button>
+            <button type="button" class="tog" data-o="bb" aria-pressed="false"><span class="sw sw-line" style="background:var(--muted)"></span>Bollinger</button>
+            <button type="button" class="tog" data-o="ev" aria-pressed="true">▲▼ Setups</button>
+            <button type="button" class="tog" data-o="sr" aria-pressed="true">— Support/resistance</button>
+          </div>
+          <div class="seg" id="st-range" role="group" aria-label="Range">
+            <button type="button" data-r="63">3M</button><button type="button" data-r="126">6M</button>
+            <button type="button" data-r="250">1Y</button><button type="button" data-r="500">2Y</button>
+          </div>
+        </div>
+        <div class="st-pane"><div class="legend" id="st-lg1"></div><div class="chart" id="st-c1"></div></div>
+        <div class="st-lower-bar">
+          <div class="seg" id="st-lower" role="group" aria-label="Lower pane">
+            <button type="button" data-l="vol">Turnover</button><button type="button" data-l="rsi">RSI</button>
+            <button type="button" data-l="macd">MACD</button><button type="button" data-l="ai">AI score</button>
+            <button type="button" data-l="rel">vs NEPSE</button>
+          </div>
+        </div>
+        <div class="st-pane"><div class="legend" id="st-lg2"></div><div class="chart" id="st-c2"></div></div>
+      </div>
+      <aside class="side">
+        <div class="card" id="st-ai"></div>
+        <div class="card" id="st-ev"></div>
+        <div class="card" id="st-tt"></div>
+        <div class="card" id="st-lv"></div>
+      </aside>
+    </div>
+    <p class="fine">Prices are adjusted for bonus and rights issues. Setup markers: ▲ followed by better-than-average returns on NEPSE, ▼ by worse, ● no consistent edge (see <a href="#v=evidence">How it decides</a>).</p>
+  </section>
+
+  <!-- ============================== SECTORS ============================== -->
+  <section class="view" id="v-sectors" hidden>
+    <div class="sec-grid">
+      <div class="card">
+        <div class="block-head"><h2>Sector rotation</h2><span class="sub-k" id="rrg-sub"></span></div>
+        <div class="rrg" id="rrg"></div>
+        <p class="note">Relative Rotation Graph (JdK method, open approximation): right = stronger than the average stock, up = gaining. Sectors usually rotate clockwise: Improving → Leading → Weakening → Lagging. Tails show the last 6 weeks.</p>
+      </div>
+      <div class="card">
+        <div class="table-wrap flat"><table class="sec-t" id="sec-t"></table></div>
+        <p class="note">Equal-weight average of each sector's stocks. Tap a sector to screen its stocks.</p>
       </div>
     </div>
+  </section>
 
-    <div class="field">
-      <span class="field-label">Range</span>
-      <div class="seg" role="group" aria-label="Visible date range" id="ranges">
-        <button type="button" data-range="1M">1M</button>
-        <button type="button" data-range="3M">3M</button>
-        <button type="button" data-range="6M">6M</button>
-        <button type="button" data-range="1Y">1Y</button>
-        <button type="button" data-range="3Y">3Y</button>
-        <button type="button" data-range="5Y">5Y</button>
-        <button type="button" data-range="ALL">All</button>
+  <!-- ============================== MARKET (breadth) ============================== -->
+  <section class="view" id="v-market" hidden>
+    <p class="sub">NEPSE index, Advance/Decline line and daily advancers vs decliners. <span id="updated">Loading…</span></p>
+
+    <section class="tiles" id="tiles" aria-live="polite"></section>
+
+    <section class="controls" aria-label="Chart controls">
+      <div class="field">
+        <label class="field-label" for="symbol">Price chart</label>
+        <input id="symbol" list="symbols" value="NEPSE" autocomplete="off" spellcheck="false" aria-label="Security to chart (NEPSE index or a company symbol)">
+        <datalist id="symbols"></datalist>
+        <span class="adj-row"><label><input type="checkbox" id="t-adj" checked> Adjusted for bonus/rights</label></span>
       </div>
-    </div>
 
-    <div class="field">
-      <span class="field-label">Moving averages, in trading days (up to 3)</span>
-      <div class="mas" role="group" aria-label="Moving average periods">
-        <button type="button" class="chip" id="t-adline" aria-pressed="true" title="Show or hide the raw AD line in the middle pane, leaving only the moving averages">AD line</button>
-        <span class="mas" id="ma-chips"></span>
-        <form class="ma-add" id="ma-form" autocomplete="off">
-          <input id="ma-input" type="number" inputmode="numeric" min="2" max="1000" step="1" placeholder="Days" aria-label="Add a moving average of this many trading days">
-          <button type="submit" class="ma">Add</button>
+      <div class="field">
+        <span class="field-label">Count in breadth</span>
+        <div class="chips" role="group" aria-label="Security types counted in breadth">
+          <span class="chip chip-fixed" title="Ordinary shares are always counted">Stocks <span id="n-equity"></span></span>
+          <button type="button" class="chip" id="t-mf" aria-pressed="true">Mutual funds <span id="n-mutual_fund"></span></button>
+          <button type="button" class="chip" id="t-deb" aria-pressed="true">Debentures <span id="n-debenture"></span></button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Range</span>
+        <div class="seg" role="group" aria-label="Visible date range" id="ranges">
+          <button type="button" data-range="1M">1M</button>
+          <button type="button" data-range="3M">3M</button>
+          <button type="button" data-range="6M">6M</button>
+          <button type="button" data-range="1Y">1Y</button>
+          <button type="button" data-range="3Y">3Y</button>
+          <button type="button" data-range="5Y">5Y</button>
+          <button type="button" data-range="ALL">All</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Moving averages, in trading days (up to 3)</span>
+        <div class="mas" role="group" aria-label="Moving average periods">
+          <button type="button" class="chip" id="t-adline" aria-pressed="true" title="Show or hide the raw AD line in the middle pane, leaving only the moving averages">AD line</button>
+          <span class="mas" id="ma-chips"></span>
+          <form class="ma-add" id="ma-form" autocomplete="off">
+            <input id="ma-input" type="number" inputmode="numeric" min="2" max="1000" step="1" placeholder="Days" aria-label="Add a moving average of this many trading days">
+            <button type="submit" class="ma">Add</button>
+          </form>
+          <p class="ma-msg" id="ma-msg" role="status"></p>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Lower pane</span>
+        <div class="seg" role="group" aria-label="Indicator shown in the lower pane" id="panes-mode">
+          <button type="button" data-pane="breadth">Advancers / decliners</button>
+          <button type="button" data-pane="mcclellan">McClellan</button>
+          <button type="button" data-pane="flow">Money flow</button>
+          <button type="button" data-pane="above50">% above 50d MA</button>
+          <button type="button" data-pane="hilo">52w highs/lows</button>
+          <button type="button" data-pane="rs">Avg stock vs NEPSE</button>
+        </div>
+      </div>
+
+      <button type="button" class="btn" id="download">Download CSV</button>
+    </section>
+
+    <main class="panes" id="panes">
+      <div class="pane pane-price"><div class="legend" id="lg-price"></div><div class="chart" id="c-price"></div></div>
+      <div class="pane pane-ad"><div class="legend" id="lg-ad"></div><div class="chart" id="c-ad"></div></div>
+      <div class="pane pane-hist"><div class="legend" id="lg-hist"></div><div class="chart" id="c-hist"></div></div>
+      <div class="status" id="status" hidden></div>
+    </main>
+    <p class="hint">Scroll or pinch to zoom · drag to pan · double-click the price axis to reset. ▲▼ on the AD line mark the crossover chosen below.</p>
+
+    <section class="sectors" id="sectors" aria-labelledby="sec-h">
+      <div class="sec-head">
+        <h2 id="sec-h">Sectors in breadth</h2>
+        <button type="button" class="btn" id="sec-all">Count all sectors</button>
+      </div>
+      <p class="fine" id="sector-note"></p>
+      <div class="table-wrap">
+        <table id="sector-table" class="sector-table"></table>
+      </div>
+      <p class="fine">Equal-weight, bonus-adjusted returns. Tick sectors to choose what counts in breadth: the AD line, lower pane, score and signals all recompute.</p>
+    </section>
+
+    <section class="signals" id="signals" aria-labelledby="sig-h">
+      <div class="sec-head">
+        <h2 id="sig-h">Breadth signals</h2>
+        <div class="field">
+          <span class="field-label">History measured over</span>
+          <div class="seg" id="sig-period" role="group" aria-label="Period for the historical statistics">
+            <button type="button" data-period="all">Since 2013</button>
+            <button type="button" data-period="is">2013–2019</button>
+            <button type="button" data-period="oos">Since 2020</button>
+          </div>
+        </div>
+      </div>
+      <div class="sig-grid">
+        <div class="card" id="score-card"></div>
+        <div class="card" id="score-hist"></div>
+        <div class="card" id="cross-card">
+          <h3><label for="sig-select">Crossover check</label></h3>
+          <select id="sig-select"></select>
+          <div id="cross-body"></div>
+        </div>
+      </div>
+      <p class="fine">NEPSE's % change from the <em>next</em> day's open to the close 5 or 20 trading days later, before costs. Past behaviour, not a forecast or investment advice.</p>
+    </section>
+
+    <section class="backtest" id="backtest" aria-labelledby="bt-h">
+      <div class="sec-head">
+        <h2 id="bt-h">Backtest a rule</h2>
+        <div class="field">
+          <span class="field-label">Period</span>
+          <div class="seg" id="bt-period" role="group" aria-label="Backtest period">
+            <button type="button" data-period="all">Since 2013</button>
+            <button type="button" data-period="is">2013–2019</button>
+            <button type="button" data-period="oos">Since 2020</button>
+          </div>
+        </div>
+      </div>
+      <div class="bt-grid">
+        <form class="card bt-form" id="bt-form" autocomplete="off">
+          <h3>Hold NEPSE only while every ticked condition is true</h3>
+          <label class="cond"><input type="checkbox" name="flow" checked> 10-day money flow above <input type="number" name="flowMin" value="50" min="1" max="99" aria-label="Money flow threshold, percent">%</label>
+          <label class="cond"><input type="checkbox" name="score"> Breadth score at least
+            <select name="scoreMin" aria-label="Minimum breadth score"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+          <label class="cond"><input type="checkbox" name="adma"> AD line above its <input type="number" name="adN" value="10" min="2" max="500" aria-label="AD line moving average days">-day MA</label>
+          <label class="cond"><input type="checkbox" name="adx"> AD line's <input type="number" name="adA" value="10" min="2" max="500" aria-label="Fast moving average days">-day MA above its <input type="number" name="adB" value="20" min="2" max="500" aria-label="Slow moving average days">-day MA</label>
+          <label class="cond"><input type="checkbox" name="mco"> McClellan oscillator (19/39) above 0</label>
+          <label class="cond"><input type="checkbox" name="msi"> Summation index rising over 5 days</label>
+          <label class="cond"><input type="checkbox" name="px"> NEPSE above its <input type="number" name="pxN" value="20" min="2" max="500" aria-label="NEPSE moving average days">-day MA</label>
+          <label class="cond cost">Cost per buy or sell <input type="number" name="cost" value="0.4" step="0.05" min="0" max="5" aria-label="Trading cost per side, percent">%</label>
+          <p class="note">Read at the close, acted on at the next day's open.</p>
         </form>
-        <p class="ma-msg" id="ma-msg" role="status"></p>
+        <div class="card bt-res" id="bt-res"></div>
       </div>
-    </div>
-
-    <div class="field">
-      <span class="field-label">Lower pane</span>
-      <div class="seg" role="group" aria-label="Indicator shown in the lower pane" id="panes-mode">
-        <button type="button" data-pane="breadth">Advancers / decliners</button>
-        <button type="button" data-pane="mcclellan">McClellan</button>
-        <button type="button" data-pane="flow">Money flow</button>
-        <button type="button" data-pane="above50">% above 50d MA</button>
-        <button type="button" data-pane="hilo">52w highs/lows</button>
-        <button type="button" data-pane="rs">Avg stock vs NEPSE</button>
+      <div class="card bt-chart" id="bt-chart">
+        <div class="bt-legend legend-static" id="bt-legend"></div>
+        <div class="chart" id="c-bt"></div>
+        <div class="chart" id="c-dd"></div>
       </div>
-    </div>
+      <p class="fine">Long NEPSE or cash, no interest on cash, no taxes. A rule tuned until it looks good on this history will look worse on the future: compare 2013–2019 with since-2020.</p>
+    </section>
 
-    <button type="button" class="btn" id="download">Download CSV</button>
-  </section>
-
-  <main class="panes" id="panes">
-    <div class="pane pane-price"><div class="legend" id="lg-price"></div><div class="chart" id="c-price"></div></div>
-    <div class="pane pane-ad"><div class="legend" id="lg-ad"></div><div class="chart" id="c-ad"></div></div>
-    <div class="pane pane-hist"><div class="legend" id="lg-hist"></div><div class="chart" id="c-hist"></div></div>
-    <div class="status" id="status" hidden></div>
-  </main>
-  <p class="hint">Scroll or pinch to zoom · drag to pan · double-click the price axis to reset its scale. ▲▼ on the AD line (or its moving average, if the line is hidden) mark the crossover chosen below.</p>
-
-  <section class="sectors" id="sectors" aria-labelledby="sec-h">
-    <div class="sec-head">
-      <h2 id="sec-h">Sectors</h2>
-      <button type="button" class="btn" id="sec-all">Count all sectors</button>
-    </div>
-    <p class="fine" id="sector-note"></p>
-    <div class="table-wrap">
-      <table id="sector-table" class="sector-table"></table>
-    </div>
-    <p class="fine">Returns are for the <em>average</em> stock in each sector (equal-weight, bonus/rights-adjusted), so they show how most shares did, not the sector's big caps. Tick sectors to choose what counts in breadth: the AD line, lower pane, score and signals all recompute. Sectors come from <code>data/sectors.csv</code>, filled in from ShareSansar by GitHub Actions.</p>
-  </section>
-
-  <section class="signals" id="signals" aria-labelledby="sig-h">
-    <div class="sec-head">
-      <h2 id="sig-h">Breadth signals</h2>
-      <div class="field">
-        <span class="field-label">History measured over</span>
-        <div class="seg" id="sig-period" role="group" aria-label="Period for the historical statistics">
-          <button type="button" data-period="all">Since 2013</button>
-          <button type="button" data-period="is">2013–2019</button>
-          <button type="button" data-period="oos">Since 2020</button>
-        </div>
+    <section class="insights" aria-labelledby="ins-h">
+      <div class="sec-head"><h2 id="ins-h">What the breadth data says</h2><span class="sub-k">study of 2013 – Nov 2026 · <code>python scripts/signal_study.py</code></span></div>
+      <div class="ins-list">
+        <details class="ins"><summary><b>The market decider</b><span>NEPSE goes where most stocks go; money flow is the best single guide</span></summary>
+          <p>The net share of stocks rising vs falling explains about <b>77%</b> of the index's daily moves (correlation 0.88 in both periods). Looking ahead, the 10-day share of turnover traded in rising stocks (<em>money flow</em>) predicted the following week best: rank correlation 0.18 in 2013–19 and 0.12 since 2020, against 0.16 and 0.03 for the index's own 20-day momentum.</p></details>
+        <details class="ins"><summary><b>Follow-through happens at the open</b><span>today's move shows up in tomorrow's opening gap, not after it</span></summary>
+          <p>The correlation of today's move with tomorrow's opening gap is 0.37 since 2020; from the open onward there is nothing left (−0.02). Close-to-close backtests therefore look far better than anything tradeable. Every number on this site is measured from the next open.</p></details>
+        <details class="ins"><summary><b>Two AD-line crossovers held up</b><span>AD × its 10-day MA, and the 10-day × 20-day MA</span></summary>
+          <p>After bullish AD × MA10 crosses NEPSE did 0.6% (2013–19) and 0.7% (2020–26) better over the next week than after bearish ones; for MA10 × MA20 the gap was 1.9% and 3.2% over 20 days. Rules on the 50-day MA worked before 2020 (18.9% a year) and fell apart after (4.8%).</p></details>
+        <details class="ins"><summary><b>Bearish crosses are the louder warning</b><span>after the AD line falls below its 7-day MA, NEPSE rose a week later only 33% of the time</span></summary>
+          <p>That compares with 48% on a typical day (since 2020). With all five score readings bearish the next week averaged about −0.3% in both periods, versus about +0.9% when all five were bullish.</p></details>
+        <details class="ins"><summary><b>Breadth cuts risk, not returns</b><span>money flow above 50% matched buy-and-hold with half the drawdown</span></summary>
+          <p>Holding NEPSE only while money flow was above 50% returned 15.1% a year in 2013–19 and 13.0% since 2020 (buy-and-hold: 12.2% and 13.7%), invested about half the time, with a worst fall of −19% and −26% against −42% and −43%.</p></details>
+        <details class="ins"><summary><b>Textbook divergences fail here</b><span>NEPSE highs without breadth kept rising: a momentum market</span></summary>
+          <p>Index highs without AD-line confirmation were followed by +3.0% (2013–19) and +2.6% (2020–26) over 20 days, better than average. Breadth thrusts and washouts were not reliable turning points either.</p></details>
+        <details class="ins"><summary><b>Slow participation readings faded</b><span>% above the 50-day MA and 52-week highs − lows stopped predicting after 2020</span></summary>
+          <p>Both predicted the next week before 2020 (rank correlation 0.13) but not since (0.03). They stay on the chart as context, not in the score.</p></details>
+        <details class="ins"><summary><b>Mutual funds don't change the signals</b><span>under 0.01 difference</span></summary>
+          <p>Fund units track the market loosely (same-day correlation 0.55, against 0.88 for stocks). Excluding them gives cleaner numbers, not better forecasts.</p></details>
+        <details class="ins"><summary><b>What price data can't see</b><span>liquidity (rates, NRB margin rules) drives the big cycles</span></summary>
+          <p>Even the best reading explains only about 1–4% of next week's variation. Treat breadth as a risk filter rather than a prediction.</p></details>
       </div>
-    </div>
-    <div class="sig-grid">
-      <div class="card" id="score-card"></div>
-      <div class="card" id="score-hist"></div>
-      <div class="card" id="cross-card">
-        <h3><label for="sig-select">Crossover check</label></h3>
-        <select id="sig-select"></select>
-        <div id="cross-body"></div>
+    </section>
+
+    <section class="recent">
+      <h2>Last 10 trading days</h2>
+      <div class="table-wrap">
+        <table id="recent-table">
+          <thead><tr><th>Date</th><th>NEPSE close</th><th>Change</th><th>Advancers</th><th>Decliners</th><th>Unchanged</th><th>AD line Δ</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
-    </div>
-    <p class="fine">Returns are the NEPSE index's % change from the <em>next</em> day's open to the close 5 or 20 trading days later, which is what you could have caught by acting the morning after a signal, before costs. Breadth follows the stocks / mutual funds / debentures choice above. Past behaviour, not a forecast or investment advice.</p>
+    </section>
   </section>
 
-  <section class="backtest" id="backtest" aria-labelledby="bt-h">
-    <div class="sec-head">
-      <h2 id="bt-h">Backtest a rule</h2>
-      <div class="field">
-        <span class="field-label">Period</span>
-        <div class="seg" id="bt-period" role="group" aria-label="Backtest period">
-          <button type="button" data-period="all">Since 2013</button>
-          <button type="button" data-period="is">2013–2019</button>
-          <button type="button" data-period="oos">Since 2020</button>
-        </div>
+  <!-- ============================== EVIDENCE ============================== -->
+  <section class="view" id="v-evidence" hidden>
+    <div class="ev-hero" id="ev-hero"></div>
+    <div class="ev-grid">
+      <div class="card" id="ev-dec"></div>
+      <div class="card" id="ev-methods"></div>
+      <div class="card span2" id="ev-port">
+        <div id="ev-port-head"></div>
+        <div class="bt-legend" id="ev-port-lg"></div>
+        <div class="chart" id="c-port"></div>
       </div>
-    </div>
-    <div class="bt-grid">
-      <form class="card bt-form" id="bt-form" autocomplete="off">
-        <h3>Hold NEPSE only while every ticked condition is true</h3>
-        <label class="cond"><input type="checkbox" name="flow" checked> 10-day money flow above <input type="number" name="flowMin" value="50" min="1" max="99" aria-label="Money flow threshold, percent">%</label>
-        <label class="cond"><input type="checkbox" name="score"> Breadth score at least
-          <select name="scoreMin" aria-label="Minimum breadth score"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
-        <label class="cond"><input type="checkbox" name="adma"> AD line above its <input type="number" name="adN" value="10" min="2" max="500" aria-label="AD line moving average days">-day MA</label>
-        <label class="cond"><input type="checkbox" name="adx"> AD line's <input type="number" name="adA" value="10" min="2" max="500" aria-label="Fast moving average days">-day MA above its <input type="number" name="adB" value="20" min="2" max="500" aria-label="Slow moving average days">-day MA</label>
-        <label class="cond"><input type="checkbox" name="mco"> McClellan oscillator (19/39) above 0</label>
-        <label class="cond"><input type="checkbox" name="msi"> Summation index rising over 5 days</label>
-        <label class="cond"><input type="checkbox" name="px"> NEPSE above its <input type="number" name="pxN" value="20" min="2" max="500" aria-label="NEPSE moving average days">-day MA</label>
-        <label class="cond cost">Cost per buy or sell <input type="number" name="cost" value="0.4" step="0.05" min="0" max="5" aria-label="Trading cost per side, percent">%</label>
-        <p class="note">Read at the close, acted on at the next day's open. Breadth follows the stocks / sectors you chose above.</p>
-      </form>
-      <div class="card bt-res" id="bt-res"></div>
-    </div>
-    <div class="card bt-chart" id="bt-chart">
-      <div class="bt-legend legend-static" id="bt-legend"></div>
-      <div class="chart" id="c-bt"></div>
-      <div class="chart" id="c-dd"></div>
-    </div>
-    <p class="fine">Long NEPSE or cash, no interest on cash, no taxes. The index itself can't be bought, so treat this as a guide to how a breadth-timed portfolio of index-like stocks would have behaved, not a promise. A rule you tune until it looks good on this history will look worse on the future: compare the 2013–2019 and since-2020 results before trusting one.</p>
-  </section>
-
-  <section class="insights" aria-labelledby="ins-h">
-    <h2 id="ins-h">What the data says</h2>
-    <p class="sub">A study of every trading day from Jan 2013 to Nov 2026, ordinary shares only (with the pre-2018 price-change data repaired; see <code>scripts/price_changes.py</code>), with each result checked separately on 2013–2019 and on 2020–2026 so a pattern has to hold in both to count. Returns are from the next day's open. Reproduce it with <code>python scripts/signal_study.py</code>.</p>
-
-    <article class="card hero">
-      <h3>The market decider</h3>
-      <p><b>On any given day, NEPSE goes where the majority of stocks go.</b> The net share of stocks rising vs falling explains about <b>77%</b> of the index's daily moves (correlation 0.88 in both periods). Looking ahead, the best single guide is <b>where the money goes</b>: the 10-day share of turnover traded in rising stocks (<em>money flow</em>). It predicted the following week better than any price-based reading: rank correlation 0.18 in 2013–19 and 0.12 since 2020, against 0.16 and 0.03 for the index's own 20-day momentum. Breadth plus turnover tells you more than the price line alone.</p>
-    </article>
-
-    <div class="ins-grid">
-      <article class="card">
-        <h3>NEPSE follows through, but at the open</h3>
-        <p>A strong day tends to be followed by a higher open: the correlation of today's move with tomorrow's opening gap is 0.37 since 2020. From the open onward there is nothing left (−0.02). Close-to-close backtests therefore look far better than anything you could have traded. Every number on this page is measured from the next open.</p>
-      </article>
-      <article class="card">
-        <h3>The AD-line crossovers that held up</h3>
-        <p>Two crossovers worked in <em>both</em> periods. The fast one is <b>the AD line crossing its 10-day MA</b>: after bullish crosses NEPSE did 0.6% (2013–19) and 0.7% (2020–26) better over the next week than after bearish ones. The slow one is <b>the AD line's 10-day MA crossing its 20-day MA</b>: 1.9% and 3.2% better over the next 20 days. Rules built on the 50-day MA looked best before 2020 (holding NEPSE while the AD line was above it earned 18.9% a year) and fell apart after (4.8%). That is why 10 and 20 are now the default lines.</p>
-      </article>
-      <article class="card">
-        <h3>Bearish crosses are the louder warning</h3>
-        <p>Since 2020 the sell side of breadth has been more informative than the buy side. After the AD line fell below its 7-day MA, NEPSE was higher a week later only <b>34%</b> of the time, against 48% on a typical day. With all five score readings bearish (score 0), the next week averaged about −0.3% in both periods, versus about +0.9% when all five were bullish.</p>
-      </article>
-      <article class="card">
-        <h3>Use breadth to cut risk, not to chase returns</h3>
-        <p>After 0.4% trading costs, no breadth rule clearly beat simply holding the index. What they do is avoid the worst stretches. Holding NEPSE only while money flow was above 50% returned 15.1% a year in 2013–19 and 13.0% since 2020 (buy-and-hold: 12.2% and 13.7%). It did that while invested about half the time, and its worst fall was −19% and −26% against −42% and −43%. Holding while the summation index rose cut the worst fall to about −21% but gave up more return (9.7% and 12.1%).</p>
-      </article>
-      <article class="card">
-        <h3>Textbook divergences fail on NEPSE</h3>
-        <p>In US-style breadth analysis, an index making new highs without the AD line is a warning. Here it wasn't: those days were followed by <b>+3.0%</b> (2013–19) and <b>+2.6%</b> (2020–26) over 20 days, better than average. NEPSE highs tend to keep running. Breadth thrusts and washouts (very low % advancing) were not reliable turning points either. This is a momentum market: weak breadth is a reason to wait, not to bottom-fish.</p>
-      </article>
-      <article class="card">
-        <h3>Slower participation readings faded after 2020</h3>
-        <p>The share of stocks above their 50-day average and the count of 52-week highs minus lows both predicted the next week before 2020 (rank correlation 0.13), but not since (0.03). The average stock's strength against NEPSE never predicted the index at all. They are on the chart (lower pane) as context: they describe how broad a move is, not where it goes next. That is why they are not part of the score.</p>
-      </article>
-      <article class="card">
-        <h3>Mutual funds don't change the signals</h3>
-        <p>Including or excluding mutual funds and debentures moves the predictive correlations by less than 0.01. Fund units track the market loosely (same-day correlation 0.55, against 0.88 for stocks) and are a small share of the count. Excluding them gives cleaner numbers, not better forecasts.</p>
-      </article>
-      <article class="card">
-        <h3>What this data can't see</h3>
-        <p>Even the best reading explains only about 1–4% of the variation in next week's return. NEPSE's big multi-month cycles are driven by liquidity: bank interest rates, the interbank rate, and NRB policy on margin lending. None of that is in price data. If you fit one more input, make it a liquidity series such as the interbank rate. Treat breadth as a risk filter rather than a prediction.</p>
-      </article>
+      <div class="card" id="ev-years"></div>
+      <div class="card" id="ev-drivers"></div>
+      <div class="card span2" id="ev-setups"></div>
+      <div class="card" id="ev-live"></div>
+      <div class="card" id="ev-how"></div>
     </div>
   </section>
 
-  <section class="recent">
-    <h2>Last 10 trading days</h2>
-    <div class="table-wrap">
-      <table id="recent-table">
-        <thead><tr><th>Date</th><th>NEPSE close</th><th>Change</th><th>Advancers</th><th>Decliners</th><th>Unchanged</th><th>AD line Δ</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-
-  <footer class="notes">
-    <p><strong>How breadth is counted.</strong> Each trading day, every security in <code>data/company-wise</code> that traded is an <em>advancer</em> (per_change &gt; 0), a <em>decliner</em> (&lt; 0) or <em>unchanged</em>. The Advance/Decline line is the running total of advancers − decliners. Turning off mutual funds or debentures removes them from all three breadth numbers; the NEPSE index itself is published by NEPSE and does not change.</p>
-    <p>Mutual funds trade near their NPR 10 face value and debentures near NPR 1,000, so they are classified automatically (see <code>scripts/securities.py</code>). Data: ShareSansar, refreshed by GitHub Actions after the market closes (Sun–Thu, 15:00 NPT). Charts: <a href="https://www.tradingview.com/lightweight-charts/">TradingView Lightweight Charts</a>.</p>
+  <footer class="foot">
+    <details>
+      <summary>About this site · not investment advice</summary>
+      <p>Data: ShareSansar, refreshed by GitHub Actions after each trading day (Sun–Thu, NEPSE closes 15:00 NPT). Every share's prices are adjusted for bonus and rights issues. Returns are measured from the <em>next</em> session's open, because NEPSE's opening gap already contains most of the previous day's move. Mutual funds and debentures are classified automatically (<code>scripts/securities.py</code>) and left out of the stock screener.</p>
+      <p>Breadth: each security that traded is an advancer, decliner or unchanged; the Advance/Decline line is the running total of advancers − decliners. Charts: <a href="https://www.tradingview.com/lightweight-charts/">TradingView Lightweight Charts</a>. Everything here describes past behaviour; none of it is a recommendation to buy or sell.</p>
+    </details>
   </footer>
+
+  <div class="tip" id="tip" role="tooltip" hidden></div>
 
   <script src="vendor/lightweight-charts.standalone.production.js"></script>
   <script src="app.js"></script>
+  <script src="screener.js"></script>
 </body>
 </html>

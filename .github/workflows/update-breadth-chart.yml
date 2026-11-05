@@ -68,6 +68,15 @@ jobs:
       - name: Log today's breadth signals (forward-test record)
         run: python scripts/log_signals.py
 
+      - name: Build interactive site
+        run: python scripts/build_site.py
+
+      - name: Build stock screener + AI ranking, log today's suggestions (forward-test record)
+        # If this step ever breaks, the breadth chart still ships; the page says the
+        # stock analysis is unavailable.
+        continue-on-error: true
+        run: python scripts/build_screener.py --log
+
       - name: Setup Git
         run: git config --local user.email "actions@github.com" && git config --local user.name "nepse-breadth-bot"
 
@@ -75,6 +84,7 @@ jobs:
         id: commit
         run: |
           git add data/nepse-index.csv data/market-breadth.csv data/combined.csv data/security-types.csv data/sectors.csv data/signal-log.csv charts/
+          if [ -f data/picks-log.csv ]; then git add data/picks-log.csv; fi
           if git diff --staged --quiet; then
             echo "No changes to commit."
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -89,9 +99,6 @@ jobs:
           # the data scraper may have pushed since checkout
           git pull --rebase origin main
           git push origin HEAD:main
-
-      - name: Build interactive site
-        run: python scripts/build_site.py
 
       - uses: actions/configure-pages@v5
 

@@ -111,7 +111,7 @@ def stamp_assets(out_dir: Path):
     """
     page = out_dir / "index.html"
     html = page.read_text()
-    for name in ("style.css", "app.js", "vendor/lightweight-charts.standalone.production.js"):
+    for name in ("style.css", "app.js", "screener.js", "vendor/lightweight-charts.standalone.production.js"):
         digest = hashlib.sha1((out_dir / name).read_bytes()).hexdigest()[:10]
         for attr in ("href", "src"):
             html = html.replace(f'{attr}="{name}"', f'{attr}="{name}?v={digest}"')
