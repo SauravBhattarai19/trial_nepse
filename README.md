@@ -64,6 +64,66 @@ The code that updates data on a daily basis resides in the `.github/workflows` d
 
 **Live: https://sauravbhattarai19.github.io/trial_nepse/**
 
+The site has six views (tabs at the top; each has its own URL, e.g. `#v=stock&q=NABIL`):
+
+| View | What it shows |
+|---|---|
+| **Today** | the market in one strip (NEPSE, breadth score, advancers/decliners, money flow, leading sectors); a "since your last visit" note; your watchlist with alerts; the **AI top-rated** stocks as cards with the reasons behind each score; **technical leaders** (the strongest charts by the textbook, with whether the AI agrees); **review before buying more** (the AI's lowest-rated liquid stocks); the setups that fired today, each with how it has actually done on NEPSE; and a market map (size = turnover, colour = 1D/1W/1M/3M return) |
+| **Screener** | every stock in one sortable table (returns, AI score, trend rating, IBD-style RS, Minervini template, Weinstein stage, RSI, relative volume, recent setups, 90-day sparkline) with one-tap filters |
+| **Stock** | candlesticks with 20/50/200-day averages, Supertrend, Bollinger bands, auto support/resistance, setup markers and the trailing stop; a lower pane for turnover, RSI, MACD, the stock's AI-score history or its strength vs NEPSE; side cards explaining the AI score, recent setups, the trend-template checklist and price levels |
+| **Sectors** | a relative rotation graph (sectors moving Improving → Leading → Weakening → Lagging against the average stock) and a sector table; tap a sector to screen its stocks |
+| **Market breadth** | the original breadth chart described below |
+| **How it decides** | the evidence: how the AI and 15 well-known methods have ranked NEPSE stocks out of sample, a trading check after costs, every setup's measured record, and the live record of past suggestions |
+
+The watchlist (☆) and "since your last visit" live in your browser only (`localStorage`).
+
+### Stock analysis and the AI score
+
+`scripts/build_screener.py` runs after each trading day (≈30 s). For every
+stock with 120+ sessions of history it computes the readings in
+`scripts/stock_features.py` — moving averages, the Minervini trend template,
+Weinstein stages, Supertrend, ADX, RSI, MACD, IBD-style relative strength,
+12-1 momentum, 52-week-high distance, Bollinger/Keltner squeeze,
+accumulation (up/down turnover, Chaikin money flow, OBV), pocket pivots,
+volatility contraction, sector strength — and detects 19 textbook setups.
+
+The **AI score** (1–99) is a gradient-boosted tree model (scikit-learn,
+textbook settings) that ranks stocks by their expected return over the next
+20 sessions versus the average stock, from 35 of those readings, each turned
+into a within-day rank. It is retrained every day on all data since mid-2018.
+Its accuracy is measured **walk-forward**: each year since 2020 is scored by a
+model trained only on earlier years (with a 22-session gap), so the record on
+the site is out-of-sample. Every setup's verdict ("beat the market after" /
+"lagged" / "no consistent edge") is measured on NEPSE in two separate periods
+and counts only when both agree; returns are from the next day's open.
+
+What that found (2020 – Nov 2026, out of sample):
+
+- The AI's rank correlation with the next 20 sessions was **0.078**, positive
+  in 5 of 7 years. Its best-rated tenth beat the average stock by about
+  **+1.0%** per 20 sessions; its worst-rated tenth lagged by about **−0.9%**.
+- Textbook trend and momentum ranks (RS rating, 12-1 momentum, trend template,
+  Supertrend, MACD, RSI …) were **near zero** on NEPSE. What carried
+  information: low volatility, smaller/less-traded shares, short-term
+  reversal, accumulation and sector strength.
+- Most textbook setups had **no consistent edge**. "Golden cross", "entered
+  stage 2" and "overbought (RSI > 80)" were followed by above-average returns
+  in both periods; "MACD bullish cross" and "Supertrend turned up" were
+  followed by *below*-average returns.
+- Trading the AI's top 10 every 20 sessions made 23.8% a year before costs but
+  **12.0% after 1% round-trip costs**, below the average stock's 18.9%; its
+  bottom 10 made −2.4%. The score is most useful as a filter (what to avoid,
+  what to look at), not as a trading system.
+
+Each day's suggestions are appended to `data/picks-log.csv` (upserts the
+latest day only, like `signal-log.csv`), and the site scores them once 20
+sessions have passed: a live record nobody can tune after the fact.
+
+It only sees prices and turnover — not earnings, dividends, interest rates or
+NRB policy. Past behaviour, not investment advice.
+
+### Market breadth chart
+
 A trading-style chart of the NEPSE index (candlesticks, volume, moving averages),
 the Advance/Decline line and daily advancers vs decliners, with the three
 panes scrolled, zoomed and crosshaired together (mouse wheel / pinch to zoom,
@@ -119,7 +179,7 @@ day's follow-through, so close-to-close tests overstate any edge).
   the AD line's 10-day × 20-day MA (1.9% / 3.2% over the next 20 days). Rules on
   the 50-day MA stopped working after 2020. 10 and 20 are now the default lines.
 - **Bearish signals are the louder warning since 2020:** after the AD line falls
-  below its 7-day MA, NEPSE was higher a week later only 34% of the time (vs 48%
+  below its 7-day MA, NEPSE was higher a week later only 33% of the time (vs 48%
   normally).
 - **Breadth is a risk filter, not a return booster:** after costs no rule clearly
   beat buy-and-hold by much, but holding only while money flow is above 50%
@@ -157,8 +217,8 @@ The site is rebuilt and deployed by `.github/workflows/update-breadth-chart.yml`
 every time the daily price scraper finishes. The scraper's first run is at
 15:15 Nepal time, right after NEPSE's 15:00 close, so the chart is current
 shortly after each trading day ends. The page source lives in `site/`;
-`python scripts/build_site.py` builds it into `_site/` (open it with
-`python -m http.server -d _site`).
+`python scripts/build_site.py && python scripts/build_screener.py` builds it
+into `_site/` (open it with `python -m http.server -d _site`).
 
 **Keeping it running.** `data-freshness-check` runs at 17:45 and 20:45
 Nepal time. If ShareSansar shows a newer trading day than the data here, it
