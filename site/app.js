@@ -36,7 +36,7 @@
   };
 
   const state = {
-    mf: true, deb: true, symbol: "NEPSE", range: "1Y", mas: MA_DEFAULT.slice(), adj: true,
+    mf: true, deb: true, adLine: true, symbol: "NEPSE", range: "1Y", mas: MA_DEFAULT.slice(), adj: true,
     pane: "breadth", sig: null /* null = default for the active MAs */, period: "all",
     sec: null,   // null = every sector; otherwise the list of sectors counted in breadth
   };
@@ -55,6 +55,7 @@
     if (p.get("mf") === "0") state.mf = false;
     if (p.get("adj") === "0") state.adj = false;
     if (p.get("deb") === "0") state.deb = false;
+    if (p.get("adl") === "0") state.adLine = false;
     if (p.get("s")) state.symbol = p.get("s").toUpperCase();
     if (p.get("r") && (RANGE_MONTHS[p.get("r")] || p.get("r") === "ALL")) state.range = p.get("r");
     if (PANES.includes(p.get("p"))) state.pane = p.get("p");
@@ -71,6 +72,7 @@
     const p = new URLSearchParams();
     if (!state.mf) p.set("mf", "0");
     if (!state.deb) p.set("deb", "0");
+    if (!state.adLine) p.set("adl", "0");
     if (state.symbol !== "NEPSE") p.set("s", state.symbol);
     if (!state.adj) p.set("adj", "0");
     if (state.range !== "1Y") p.set("r", state.range);
@@ -440,7 +442,10 @@
     // shared crosshair + legends
     const anchor = (name, i) => {
       if (name === "price") return [series.candles, nearest(price.c, i)];
-      if (name === "ad") return [series.ad, breadth.ad[i]];
+      if (name === "ad") {
+        const m = adMaSeries();  // the raw line may be hidden; anchor on a visible line
+        return !state.adLine && m ? [m, maOf(breadth, breadth.ad, state.mas[0])[i]] : [series.ad, breadth.ad[i]];
+      }
       if (state.pane === "mcclellan") return [series.mco, mcLive()[i]];
       if (state.pane === "flow") return [series.flow, breadth.flow10[i] == null ? null : breadth.flow10[i] * 100];
       if (state.pane === "above50") return [series.above50, breadth.above50[i]];
@@ -484,6 +489,7 @@
     for (const k of Object.keys(series)) series[k].applyOptions(so[k]);
     for (const m of flowMid) m.applyOptions({ color: t.muted });
     setPane(state.pane);
+    applyAdLine();
     setBreadthData();
     renderMas();
     renderSignals();
@@ -521,6 +527,17 @@
   function setMcoData() {
     const t = theme(), m = mcLive();
     series.mco.setData(dates.map((time, i) => (m[i] == null ? { time } : { time, value: m[i], color: m[i] >= 0 ? t.up : t.down })));
+  }
+
+  // First moving-average series on the AD pane (maSeries holds [chart, series] pairs in state.mas order).
+  function adMaSeries() {
+    const e = maSeries.find(([c]) => c === charts.ad);
+    return e ? e[1] : null;
+  }
+
+  function applyAdLine() {
+    series.ad.applyOptions({ visible: state.adLine });
+    $("t-adline").setAttribute("aria-pressed", String(state.adLine));
   }
 
   function setPane(mode) {
@@ -796,6 +813,7 @@
         g.items.map((o) => `<option value="${o.id}"${sg && sg.id === o.id ? " selected" : ""}>${esc(o.label)}</option>`).join("") + `</optgroup>`).join("");
     if (!sg) $("sig-select").value = "off";
     series.ad.setMarkers([]);
+    for (const [c, s] of maSeries) if (c === charts.ad) s.setMarkers([]);
     series.candles.setMarkers([]);
     if (!sg) {
       $("cross-body").innerHTML = `<p class="note">Pick a crossover to mark it on the chart and see what happened next. The choices follow the moving averages you have switched on.</p>`;
@@ -806,7 +824,8 @@
     const target = onPrice ? price.label : "NEPSE";
     const ev = crossEvents(sg);
     const mk = ev.up.map((i) => ({ i, up: true })).concat(ev.dn.map((i) => ({ i, up: false }))).sort((x, y) => x.i - y.i);
-    (onPrice ? series.candles : series.ad).setMarkers(mk.map((m) => ({
+    // With the raw AD line hidden, its markers would vanish too, so draw them on a visible MA line instead.
+    (onPrice ? series.candles : (!state.adLine && adMaSeries()) || series.ad).setMarkers(mk.map((m) => ({
       time: dates[m.i], position: m.up ? "belowBar" : "aboveBar", shape: m.up ? "arrowUp" : "arrowDown", color: m.up ? t.up : t.down, size: 1,
     })));
     const lastEv = mk[mk.length - 1];
@@ -1007,7 +1026,9 @@
     $("lg-ad").innerHTML =
       `<span class="item"><b>Advance/Decline line</b></span>` +
       `<span class="item opt">${dates[bi]}</span>` +
-      `<span class="item">${sw(t.ad, 1)}<b>${fmtInt(b.ad[bi])}</b> <span class="${cls(b.net[bi])}">(${signed(b.net[bi], fmtInt)})</span></span>` +
+      (state.adLine
+        ? `<span class="item">${sw(t.ad, 1)}<b>${fmtInt(b.ad[bi])}</b> <span class="${cls(b.net[bi])}">(${signed(b.net[bi], fmtInt)})</span></span>`
+        : `<span class="item opt">AD line hidden · today ${signed(b.net[bi], fmtInt)}</span>`) +
       maItems((n) => fmtInt(maOf(b, b.ad, n)[bi]));
 
     if (state.sec) $("lg-ad").innerHTML += `<span class="item"><span class="tag">${state.sec.length === 1 ? esc(state.sec[0]) + " only" : state.sec.length + " sectors"}</span></span>`;
@@ -1152,6 +1173,13 @@
   function wireControls() {
     $("t-mf").addEventListener("click", () => { state.mf = !state.mf; renderBreadthAll(true); writeHash(); });
     $("t-deb").addEventListener("click", () => { state.deb = !state.deb; renderBreadthAll(true); writeHash(); });
+    $("t-adline").addEventListener("click", () => {
+      state.adLine = !state.adLine;
+      applyAdLine();
+      renderSignals();  // moves the crossover markers to/from the raw line
+      renderLegends(null);
+      writeHash();
+    });
     $("t-adj").addEventListener("change", (e) => { state.adj = e.target.checked; selectSymbol(state.symbol); });
     for (const b of document.querySelectorAll("#ranges button")) {
       b.addEventListener("click", () => { state.range = b.dataset.range; applyRange(); writeHash(); });
@@ -1262,6 +1290,7 @@
     buildSectorStats();
     createCharts();
     setPane(state.pane);
+    applyAdLine();
     price = priceFromIndex();
     setPriceData();
     renderBreadthAll(false);
