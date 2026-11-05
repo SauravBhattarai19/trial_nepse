@@ -51,6 +51,7 @@
     <div class="field">
       <span class="field-label">Moving averages, in trading days (up to 3)</span>
       <div class="mas" role="group" aria-label="Moving average periods">
+        <button type="button" class="chip" id="t-adline" aria-pressed="true" title="Show or hide the raw AD line in the middle pane, leaving only the moving averages">AD line</button>
         <span class="mas" id="ma-chips"></span>
         <form class="ma-add" id="ma-form" autocomplete="off">
           <input id="ma-input" type="number" inputmode="numeric" min="2" max="1000" step="1" placeholder="Days" aria-label="Add a moving average of this many trading days">
@@ -81,7 +82,7 @@
     <div class="pane pane-hist"><div class="legend" id="lg-hist"></div><div class="chart" id="c-hist"></div></div>
     <div class="status" id="status" hidden></div>
   </main>
-  <p class="hint">Scroll or pinch to zoom · drag to pan · double-click the price axis to reset its scale. ▲▼ on the AD line mark the crossover chosen below.</p>
+  <p class="hint">Scroll or pinch to zoom · drag to pan · double-click the price axis to reset its scale. ▲▼ on the AD line (or its moving average, if the line is hidden) mark the crossover chosen below.</p>
 
   <section class="sectors" id="sectors" aria-labelledby="sec-h">
     <div class="sec-head">
