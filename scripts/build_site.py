@@ -11,6 +11,7 @@ Copies the static app from site/, then writes:
 Run after fetch_nepse_index.py (it reads data/nepse-index.csv).
 """
 import datetime as dt
+import hashlib
 import json
 import math
 import shutil
@@ -101,6 +102,22 @@ def serialize(g, offset=0):
     return out
 
 
+def stamp_assets(out_dir: Path):
+    """Point index.html at app.js / style.css with a ?v=<content hash> suffix.
+
+    GitHub Pages lets browsers cache each file for a while; without this a
+    visitor can get a fresh index.html with yesterday's app.js (or the other
+    way round), which looks like the "old site" or breaks the page.
+    """
+    page = out_dir / "index.html"
+    html = page.read_text()
+    for name in ("style.css", "app.js", "vendor/lightweight-charts.standalone.production.js"):
+        digest = hashlib.sha1((out_dir / name).read_bytes()).hexdigest()[:10]
+        for attr in ("href", "src"):
+            html = html.replace(f'{attr}="{name}"', f'{attr}="{name}?v={digest}"')
+    page.write_text(html)
+
+
 def main():
     index = pd.read_csv(INDEX_PATH).set_index("published_date")
     index = index[~index.index.duplicated(keep="last")]
@@ -161,6 +178,7 @@ def main():
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
     shutil.copytree(SITE_SRC, OUT_DIR)
+    stamp_assets(OUT_DIR)
     data_dir = OUT_DIR / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     (data_dir / "market.json").write_text(json.dumps(payload, separators=(",", ":")))
