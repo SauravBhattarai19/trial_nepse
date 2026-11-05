@@ -58,9 +58,17 @@ def classify(symbol: str, closes: pd.Series) -> str:
 
 
 def load_companies():
-    """Yield (symbol, type, dataframe) for every company-wise CSV."""
+    """Yield (symbol, type, dataframe) for every company-wise CSV.
+
+    Rows come back in date order with one row per date (the last one in the
+    file wins), so a stray duplicate can't be counted twice in the breadth.
+    `scripts/clean_company_csvs.py` repairs the files themselves.
+    """
     for path in sorted(COMPANY_DIR.glob("*.csv")):
         df = pd.read_csv(path)
+        df = (df.sort_values("published_date", kind="stable")
+                .drop_duplicates("published_date", keep="last")
+                .reset_index(drop=True))
         yield path.stem, classify(path.stem, df["close"]), df
 
 

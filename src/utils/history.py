@@ -34,4 +34,9 @@ def records_to_dataframe(records):
     for col in _FLOAT_COLS:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df["status"] = df["status"].astype(int)
+    # Pages are fetched one by one; if a new day is published mid-backfill the
+    # pages shift and a row can arrive twice. Keep one row per date, in order.
+    df = (df.sort_values("published_date", kind="stable")
+            .drop_duplicates("published_date", keep="last")
+            .reset_index(drop=True))
     return df[_ORDER]
