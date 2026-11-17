@@ -41,3 +41,17 @@ date,list,rank,symbol,sector,close,ai,logged_at_utc
 2026-11-13,avoid,4,NRIC,Others,870.0,3,2026-11-16T19:47:07Z
 2026-11-13,avoid,5,SAIL,Manufacturing And Processing,899.9,4,2026-11-16T19:47:07Z
 2026-11-13,avoid,6,GCIL,Manufacturing And Processing,350.1,4,2026-11-16T19:47:07Z
+2026-11-17,pick,1,CHL,Hydro Power,259.0,99,2026-11-17T18:43:22Z
+2026-11-17,pick,2,SBL,Commercial Banks,432.0,99,2026-11-17T18:43:22Z
+2026-11-17,pick,3,EBL,Commercial Banks,711.0,98,2026-11-17T18:43:22Z
+2026-11-17,pick,4,SAHAS,Hydro Power,726.3,97,2026-11-17T18:43:22Z
+2026-11-17,pick,5,ILI,Life Insurance,432.0,94,2026-11-17T18:43:22Z
+2026-11-17,pick,6,NTC,Others,940.4,94,2026-11-17T18:43:22Z
+2026-11-17,pick,7,HDL,Manufacturing And Processing,1326.0,92,2026-11-17T18:43:22Z
+2026-11-17,pick,8,SJLIC,Life Insurance,425.5,92,2026-11-17T18:43:22Z
+2026-11-17,avoid,1,CFCL,Finance,630.0,1,2026-11-17T18:43:22Z
+2026-11-17,avoid,2,CYCL,Microfinance,1232.0,2,2026-11-17T18:43:22Z
+2026-11-17,avoid,3,NRIC,Others,858.0,3,2026-11-17T18:43:22Z
+2026-11-17,avoid,4,CREST,Life Insurance,1058.9,3,2026-11-17T18:43:22Z
+2026-11-17,avoid,5,GCIL,Manufacturing And Processing,350.0,4,2026-11-17T18:43:22Z
+2026-11-17,avoid,6,HRL,Others,489.0,4,2026-11-17T18:43:22Z
